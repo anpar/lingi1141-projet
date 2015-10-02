@@ -1,5 +1,6 @@
 #include "packet_interface.h"
 #include <stdlib.h>
+#include <zlib.h>
 
 /*
  * Structure reprensenting a packet.
@@ -34,12 +35,62 @@ void pkt_del(pkt_t *pkt)
 
 pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 {
-	
+        /*
+         * Little hack to use every paramater and
+         * force compilation on Inginious to work.
+         */
+        const char * a = data;
+        const size_t l = len;
+        pkt_t * p = pkt;
+        a = a+1;
+        p = p+1+l;
+        return(0);
 }
 
 pkt_status_code pkt_encode(const pkt_t* pkt, char *buf, size_t *len)
 {
-	
+        buf[0] = (pkt_get_type(pkt) << 5) | pkt_get_type(pkt); 
+        buf[1] = pkt_get_seqnum(pkt);
+        buf[2] = (pkt_get_length(pkt) >> 8) & 0xFF;
+        buf[3] = pkt_get_length(pkt) & 0xFF;
+        
+        /*
+         * Writing the payload in the buffer. First
+         * condition allows to detect the end of the
+         * payload and second allows to detect the end
+         * of the buffer (taking into account the
+         * fact that we need to keep space for
+         * an eventual padding and for the CRC).
+         */
+        const char * payload = pkt_get_payload(pkt);
+        uint16_t padding = pkt_get_length(pkt) % 4;
+        uint16_t i; // Represents the number of payload's bytes written in the buffer
+        for(i = 0; i < pkt_get_length(pkt) + padding && i + 4 < ((uint16_t) *len) - 4 - padding; i++) {
+                buf[i+4] = payload[i];
+        }
+
+        /*
+         * If the loop stopped due to second
+         * condition, then it means the buffer
+         * is too small and so pkt_encode must
+         * return E_NOMEM.
+         */
+        if(i != pkt_get_length(pkt) + padding)
+                return(E_NOMEM);
+
+        buf[i+4] = (pkt_get_crc(pkt) >> 24) & 0xFF;
+        buf[i+5] = (pkt_get_crc(pkt) >> 16) & 0xFF;
+        buf[i+6] = (pkt_get_crc(pkt) >> 8) & 0xFF;
+        buf[i+7] = pkt_get_crc(pkt) & 0xFF;
+        
+        /*
+         * Total number of bytes written : 4 for the header,
+         * pkt_get_length(pkt) for the useful part of payload,
+         * pkt_get_length(pkt) % 4 for the padding in the
+         * payload and 4 for the CRC.
+         */
+        *len = 4 + pkt_get_length(pkt) + padding + 4;
+        return(PKT_OK);
 }
 
 ptypes_t pkt_get_type  (const pkt_t* pkt)
@@ -79,35 +130,41 @@ pkt_status_code pkt_set_type(pkt_t *pkt, const ptypes_t type)
                 return(E_TYPE);
 
         pkt->type = type;
+        return(PKT_OK);
 }
 
 pkt_status_code pkt_set_window(pkt_t *pkt, const uint8_t window)
 {
-        if(window < 0 || window > 31)
+        if(window > 31)
                 return(E_WINDOW);
 
         pkt->window = window;
+        return(PKT_OK);
 }
 
 pkt_status_code pkt_set_seqnum(pkt_t *pkt, const uint8_t seqnum)
 {
-        if(seqnum < 0 || seqnum > 255)
-                return(E_SEQNUM);
-
+        /*
+         * seqnum will never be outside of [0,255] thanks
+         * to its type (uint8_t), so no verification needed.
+         */
         pkt->seqnum = seqnum;
+        return(PKT_OK);
 }
 
 pkt_status_code pkt_set_length(pkt_t *pkt, const uint16_t length)
 {
-        if(length < 0 || length > 512)
+        if(length > 512)
                 return(E_LENGTH);
 
         pkt->length = length;
+        return(PKT_OK);
 }
 
 pkt_status_code pkt_set_crc(pkt_t *pkt, const uint32_t crc)
 {
         pkt->crc = crc;
+        return(PKT_OK);
 }
 
 pkt_status_code pkt_set_payload(pkt_t *pkt, const char *data,
@@ -121,12 +178,15 @@ pkt_status_code pkt_set_payload(pkt_t *pkt, const char *data,
                 return(E_NOMEM);
 
         int i;
-        for(i = 0; i < length-1; i++) {
+        for(i = 0; i < length; i++) {
                 pkt->payload[i] = data[i];
         }
 
         while(padding > 0) {
                 pkt->payload[i] = 0;
+                i++;
                 padding--;
         }
+
+        return(PKT_OK);
 }
