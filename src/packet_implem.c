@@ -36,20 +36,55 @@ void pkt_del(pkt_t *pkt)
 pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 {
         /*
-         * Little hack to use every paramater and
-         * force compilation on Inginious to work.
+         * Step 1 : validate the CRC32
          */
-        const char * a = data;
-        const size_t l = len;
-        pkt_t * p = pkt;
-        a = a+1;
-        p = p+1+l;
-        return(0);
+        if(len < 4)
+                return(E_UNCONSISTENT);
+
+        uint32_t received_crc = (data[len-1] << 24) | (data[len-2] << 16) | (data[len-3] << 8) | data[len-4];
+        if(len < 8)
+                return(E_NOHEADER);
+
+        uint32_t computed_crc = crc32(0, (Bytef *) data, len-4);
+        if(received_crc != computed_crc)
+                return(E_CRC);
+
+        pkt_status_code c = pkt_set_crc(pkt, received_crc);
+
+        /*
+         * Step 2 : validate the type of packet
+         */
+
+        c = pkt_set_type(pkt, data[0] >> 5);
+        if(c == E_TYPE)
+                return(E_TYPE);
+
+        c = pkt_set_window(pkt, data[0] & 0b00011111);
+        if(c == E_WINDOW)
+                return(E_WINDOW);
+
+        c = pkt_set_seqnum(pkt, data[1]);
+        
+        /*
+         * Step 3 : validate the length of the packet
+         */
+        c = pkt_set_length(pkt, (data[2] << 8) | data[3]);
+        if(c == E_LENGTH)
+                return(E_LENGTH);
+
+        if(len == 8)
+                return(E_NOPAYLOAD);
+
+        c = pkt_set_payload(pkt, data+4, len - 8);
+        if(c == E_NOMEM)
+                return(E_NOMEM);
+
+        return(PKT_OK);
 }
 
 pkt_status_code pkt_encode(const pkt_t* pkt, char *buf, size_t *len)
 {
-        buf[0] = (pkt_get_type(pkt) << 5) | pkt_get_type(pkt); 
+        buf[0] = (pkt_get_type(pkt) << 5) | pkt_get_window(pkt); 
         buf[1] = pkt_get_seqnum(pkt);
         buf[2] = (pkt_get_length(pkt) >> 8) & 0xFF;
         buf[3] = pkt_get_length(pkt) & 0xFF;
@@ -59,8 +94,7 @@ pkt_status_code pkt_encode(const pkt_t* pkt, char *buf, size_t *len)
          * condition allows to detect the end of the
          * payload and second allows to detect the end
          * of the buffer (taking into account the
-         * fact that we need to keep space for
-         * an eventual padding and for the CRC).
+         * fact that we need to keep space for the CRC).
          */
         const char * payload = pkt_get_payload(pkt);
         uint16_t padding = (4 - (pkt_get_length(pkt) % 4)) % 4;
@@ -78,15 +112,21 @@ pkt_status_code pkt_encode(const pkt_t* pkt, char *buf, size_t *len)
         if(i != pkt_get_length(pkt) + padding)
                 return(E_NOMEM);
 
-        buf[i+4] = (pkt_get_crc(pkt) >> 24) & 0xFF;
-        buf[i+5] = (pkt_get_crc(pkt) >> 16) & 0xFF;
-        buf[i+6] = (pkt_get_crc(pkt) >> 8) & 0xFF;
-        buf[i+7] = pkt_get_crc(pkt) & 0xFF;
+        /*
+         * Compute the CRC and add it at the end
+         * of buf.
+         */
+        uint32_t crc = crc32(0, (Bytef *) buf, 4 + pkt_get_length(pkt) + padding);
+        // TODO : add crc into pkt to avoid recomputing crc later
+        buf[i+4] = (crc  >> 24) & 0xFF;
+        buf[i+5] = (crc >> 16) & 0xFF;
+        buf[i+6] = (crc >> 8) & 0xFF;
+        buf[i+7] = crc & 0xFF;
         
         /*
          * Total number of bytes written : 4 for the header,
          * pkt_get_length(pkt) for the useful part of payload,
-         * pkt_get_length(pkt) % 4 for the padding in the
+         * padding for the padding in the
          * payload and 4 for the CRC.
          */
         *len = 4 + pkt_get_length(pkt) + padding + 4;
