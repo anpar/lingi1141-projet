@@ -1,5 +1,6 @@
 #include "packet_interface.h"
 #include <stdlib.h>
+#include <stdio.h>
 #include <zlib.h>
 
 /*
@@ -54,8 +55,8 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
         
         // When this piece of code is commented, Inginious
         // indicates 100%... WTF?
-        //if(received_crc != computed_crc)
-        //        return(E_CRC);
+        if(received_crc != computed_crc)
+                return(E_CRC);
 
         pkt_status_code c5 = pkt_set_crc(pkt, received_crc);
         if(c5 != PKT_OK)
@@ -124,7 +125,8 @@ pkt_status_code pkt_encode(const pkt_t* pkt, char *buf, size_t *len)
          * of buf.
          */
         uint32_t crc = crc32(0, (Bytef *) buf, 4 + pkt_get_length(pkt) + padding);
-        // TODO : add crc into pkt to avoid recomputing crc later
+        // The following line can't work due to the 'const' qualifier
+        //pkt_status_code c = pkt_set_crc(pkt, crc);
         buf[i+4] = (crc >> 24) & 0xFF;
         buf[i+5] = (crc >> 16) & 0xFF;
         buf[i+6] = (crc >> 8) & 0xFF;
@@ -182,7 +184,7 @@ pkt_status_code pkt_set_type(pkt_t *pkt, const ptypes_t type)
 
 pkt_status_code pkt_set_window(pkt_t *pkt, const uint8_t window)
 {
-        if(window > 31)
+        if(window > MAX_WINDOW_SIZE)
                 return(E_WINDOW);
 
         pkt->window = window;
@@ -194,6 +196,7 @@ pkt_status_code pkt_set_seqnum(pkt_t *pkt, const uint8_t seqnum)
         /*
          * seqnum will never be outside of [0,255] thanks
          * to its type (uint8_t), so no verification needed.
+         * FIX : 
          */
         pkt->seqnum = seqnum;
         return(PKT_OK);
@@ -221,22 +224,21 @@ pkt_status_code pkt_set_payload(pkt_t *pkt, const char *data,
         if(c != PKT_OK)
                 return(c);
 
-        int padding = (4 - (length % 4)) % 4;
-
+        uint16_t padding = (4 - (length % 4)) % 4;
         pkt->payload = (char *) malloc(sizeof(length + padding));
         if(pkt->payload == NULL)
                 return(E_NOMEM);
 
         int i;
-        for(i = 0; i < length; i++) {
+        for(i = 0; i < length; i++) { 
                 pkt->payload[i] = data[i];
         }
 
         while(padding > 0) {
-                pkt->payload[i] = 0;
+                pkt->payload[i] = '0';
                 i++;
                 padding--;
         }
-
+         
         return(PKT_OK);
 }
