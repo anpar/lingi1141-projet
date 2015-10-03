@@ -63,9 +63,9 @@ pkt_status_code pkt_encode(const pkt_t* pkt, char *buf, size_t *len)
          * an eventual padding and for the CRC).
          */
         const char * payload = pkt_get_payload(pkt);
-        uint16_t padding = pkt_get_length(pkt) % 4;
+        uint16_t padding = (4 - (pkt_get_length(pkt) % 4)) % 4;
         uint16_t i; // Represents the number of payload's bytes written in the buffer
-        for(i = 0; i < pkt_get_length(pkt) + padding && i + 4 < ((uint16_t) *len) - 4 - padding; i++) {
+        for(i = 0; i < pkt_get_length(pkt) + padding && i + 4 < ((uint16_t) *len) - 4; i++) {
                 buf[i+4] = payload[i];
         }
 
@@ -170,8 +170,7 @@ pkt_status_code pkt_set_crc(pkt_t *pkt, const uint32_t crc)
 pkt_status_code pkt_set_payload(pkt_t *pkt, const char *data,
                                 const uint16_t length)
 {
-        int padding = length % 4;
-        pkt_set_length(pkt, length);
+        int padding = (4 - (length % 4)) % 4;
 
         pkt->payload = (char *) malloc(sizeof(length + padding));
         if(pkt->payload == NULL)
@@ -188,5 +187,6 @@ pkt_status_code pkt_set_payload(pkt_t *pkt, const char *data,
                 padding--;
         }
 
+        pkt_set_length(pkt, length);
         return(PKT_OK);
 }
