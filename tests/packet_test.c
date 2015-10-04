@@ -269,10 +269,8 @@ void compute_crc_for_pkt(void) {
 void set_data_for_decode(void) {        
         /*
          * This data stream is correct.
-         * We will modify it through this
-         * function to test every cases.
-         * CRC obtained from an online
-         * CRC32 calculator.
+         * We will modify it through test
+         * functions to test every cases.
          */
         data = (char *) malloc(12 * sizeof(char));
         data[0] = 0b00100010;
@@ -422,6 +420,16 @@ void decode_invalid_seqnum(void) {
         /*
          * Same remark applies here
          */
+}
+
+/*
+ * Case 7 : the length of the
+ * data stream is not a multiple
+ * of 4. Hence the padding in the
+ * payload is invalid
+ */
+void decode_invalid_padding(void) {
+
 }
 
 /* Test Runner Code goes here */
