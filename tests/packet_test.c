@@ -429,7 +429,106 @@ void decode_invalid_seqnum(void) {
  * payload is invalid
  */
 void decode_invalid_padding(void) {
+        char * d = (char *) malloc(11*sizeof(char));
+        d[0] = 0b00100010;
+        d[1] = 150;
+        d[2] = 0;
+        d[3] = 3;
+        d[4] = 'A';
+        d[5] = 'B';
+        d[6] = 'C';
+        uint32_t crc = (uint32_t) crc32(0, (Bytef *) d, 7);
+        d[7] = (crc >> 24) & 0xFF;
+        d[8] = (crc >> 16) & 0xFF;
+        d[9] = (crc >> 8) & 0xFF;
+        d[10] = crc & 0xFF;
 
+        pkt_t * p = pkt_new();
+        pkt_set_type(p, PTYPE_DATA);
+        pkt_set_window(p, 2);
+        pkt_set_seqnum(p, 150);
+        pkt_set_length(p, 3);
+
+        pkt_t * pkt_d = pkt_new();
+
+        CU_ASSERT(pkt_decode(d, 11, pkt_d) == E_PADDING);
+        CU_ASSERT_PKT_HEADER_EQUAL(pkt_d, p);
+
+        pkt_del(p);
+        pkt_del(pkt_d);
+        free(d);
+}
+
+
+/*
+ * Case 8 : no payload in the data stream.
+ */
+void decode_no_payload(void) {
+        char * d = (char *) malloc(8*sizeof(char));
+        d[0] = 0b00100010;
+        d[1] = 150;
+        d[2] = 0;
+        d[3] = 3;
+        uint32_t crc = (uint32_t) crc32(0, (Bytef *) d, 4);
+        d[4] = (crc >> 24) & 0xFF;
+        d[5] = (crc >> 16) & 0xFF;
+        d[6] = (crc >> 8) & 0xFF;
+        d[7] = crc & 0xFF;
+
+        pkt_t * p = pkt_new();
+        pkt_set_type(p, PTYPE_DATA);
+        pkt_set_window(p, 2);
+        pkt_set_seqnum(p, 150);
+        pkt_set_length(p, 3);
+
+        pkt_t * pkt_d = pkt_new();
+
+        CU_ASSERT(pkt_decode(d, 8, pkt_d) == E_NOPAYLOAD);
+        CU_ASSERT_PKT_HEADER_EQUAL(pkt_d, p);
+
+        pkt_del(p);
+        pkt_del(pkt_d);
+        free(d);
+}
+
+/*
+ * Case 9 : data stream is unconsitent
+ */
+void decode_unconsistent(void) {
+        /*
+         * FIX: This test currently doesn't work.
+         * When a data stream is unconsistent,
+         * error like invalid CRC or invalid
+         * padding are returned before
+         * E_UNCONSISTENT.
+         
+        set_data_for_decode();
+        char * d = (char *) malloc(44 * sizeof(char));
+        d[0] = 0b00100010;
+        d[1] = 150;
+        d[2] = 0;
+        d[3] = 4;
+        d[4] = 'A';
+        d[5] = 'B';
+        d[6] = 'C';
+        d[7] = 'D';
+        uint32_t crc = (uint32_t) crc32(0, (Bytef *) d, 40);
+        d[40] = (crc >> 24) & 0xFF;
+        d[41] = (crc >> 16) & 0xFF;
+        d[42] = (crc >> 8) & 0xFF;
+        d[42] = crc & 0xFF;
+
+        pkt_t * pkt_d = pkt_new();
+
+        CU_ASSERT(pkt_decode(d, 44, pkt_d) == E_UNCONSISTENT);
+        printf("ce = %d.\n", pkt_decode(d, 44, pkt_d));
+        CU_ASSERT_PKT_HEADER_EQUAL(pkt_d, pkt);
+
+        del_data_for_decode();
+        pkt_del(pkt_d);
+        free(d);
+        
+        */
 }
 
 /* Test Runner Code goes here */
@@ -463,8 +562,11 @@ int main(void) {
                         (NULL == CU_add_test(basic, "decode invalid CRC bis", decode_invalid_crc_bis)) ||
                         (NULL == CU_add_test(basic, "decode invalid type", decode_invalid_type)) ||
                         (NULL == CU_add_test(basic, "decode invalid window", decode_invalid_window)) ||
-                        (NULL == CU_add_test(basic, "decode invalid seqnum", decode_invalid_seqnum))
-                ) 
+                        (NULL == CU_add_test(basic, "decode invalid seqnum", decode_invalid_seqnum)) ||
+                        (NULL == CU_add_test(basic, "decode invalid padding", decode_invalid_padding)) ||
+                        (NULL == CU_add_test(basic, "decode no payload", decode_no_payload)) ||
+                        (NULL == CU_add_test(basic, "decode unconsistent", decode_unconsistent))
+                )
         {
                 CU_cleanup_registry();
                 return CU_get_error();
