@@ -144,7 +144,6 @@ void test_pkt_payload(void) {
          */
         CU_ASSERT(pkt_set_payload(pkt, "123", 3) == PKT_OK);
         CU_ASSERT(pkt_get_length(pkt) == 3);
-        // FIX : adding a 0 after 123 causes a seg fault.. wtf?
         CU_ASSERT_STRING_EQUAL(pkt_get_payload(pkt), "1230");
 
         /*

@@ -179,7 +179,7 @@ pkt_status_code pkt_set_type(pkt_t *pkt, const ptypes_t type)
 {
         if(type != PTYPE_DATA && type != PTYPE_ACK && type != PTYPE_NACK)
                 return(E_TYPE);
-
+        
         pkt->type = type;
         return(PKT_OK);
 }
@@ -227,6 +227,15 @@ pkt_status_code pkt_set_payload(pkt_t *pkt, const char *data,
                 return(c);
 
         uint16_t padding = (4 - (length % 4)) % 4;
+        
+        /*
+         * If pkt->payload is already allocated
+         * with malloc (!= NULL), then we have
+         * to free'd it before reallocating.
+         */
+        if(pkt->payload != NULL)
+                free(pkt->payload);
+
         pkt->payload = (char *) malloc((length + padding) * sizeof(char));
         if(pkt->payload == NULL)
                 return(E_NOMEM);
