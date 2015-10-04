@@ -2,4 +2,4 @@ all:
 	cd ..; make
 
 clean:
-	cd..; make mrproper
+	cd ..; make mrproper

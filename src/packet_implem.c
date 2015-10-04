@@ -25,13 +25,18 @@ pkt_t* pkt_new()
         if(pkt == NULL)
                 return(NULL);
 
+        pkt->payload = NULL;
+
         return(pkt);
 }
 
 void pkt_del(pkt_t *pkt)
 {
-        free(pkt->payload);
-        free(pkt);    
+        if(pkt->payload != NULL)
+                free(pkt->payload);
+        
+        if(pkt != NULL)
+                free(pkt);    
 }
 
 pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
@@ -39,22 +44,29 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
         // A packet contains at least a CRC and the header
         if(len < 8)
                 return(E_NOHEADER);
-
-        uint32_t received_crc = (data[len-4] << 24) | (data[len-3] << 16) | (data[len-2] << 8) | data[len-1];
+        
+        //uint32_t received_crc = data[len-1] | (data[len-2] << 8) | (data[len-3] << 16) | (data[len-4] << 24);
+        // We still have to understand why the above line doesn't work
+        // properly (and so why the (uint8_t) cast in the following
+        // line make the things work).
+        uint32_t received_crc = (uint8_t) data[len-4];
+        received_crc = (received_crc << 8) + (uint8_t) data[len-3];
+        received_crc = (received_crc << 8) + (uint8_t) data[len-2];
+        received_crc = (received_crc << 8) + (uint8_t) data[len-1];
         uint32_t computed_crc = crc32(0L, (Bytef *) data, len-4);
 
-        // @return says that unless the error is E_NOHEADER,
-        // the packet has at least the values of the header
-        // found in the data stream. So, we first add the
-        // values of the header and then only check the
-        // return values of the setters used.
+        /*
+         * @return says that unless the error is E_NOHEADER,
+         * the packet has at least the values of the header
+         * found in the data stream. So, we first add the
+         * values of the header and then only check the
+         * return values of the setters used.
+         */
         pkt_status_code c1 = pkt_set_type(pkt, data[0] >> 5);
         pkt_status_code c2 = pkt_set_window(pkt, data[0] & 0b00011111);
         pkt_status_code c3 = pkt_set_seqnum(pkt, data[1]);
         pkt_status_code c4 = pkt_set_length(pkt, (data[2] << 8) | data[3]);
         
-        // When this piece of code is commented, Inginious
-        // indicates 100%... WTF?
         if(received_crc != computed_crc)
                 return(E_CRC);
 
@@ -123,10 +135,10 @@ pkt_status_code pkt_encode(const pkt_t* pkt, char *buf, size_t *len)
         /*
          * Compute the CRC and add it at the end
          * of buf.
+         * TODO: find a way to add this CRC in the
+         * pkt stucture.
          */
-        uint32_t crc = crc32(0, (Bytef *) buf, 4 + pkt_get_length(pkt) + padding);
-        // The following line can't work due to the 'const' qualifier
-        //pkt_status_code c = pkt_set_crc(pkt, crc);
+        uint32_t crc = (uint32_t) crc32(0, (Bytef *) buf, 4 + pkt_get_length(pkt) + padding);
         buf[i+4] = (crc >> 24) & 0xFF;
         buf[i+5] = (crc >> 16) & 0xFF;
         buf[i+6] = (crc >> 8) & 0xFF;
@@ -225,7 +237,7 @@ pkt_status_code pkt_set_payload(pkt_t *pkt, const char *data,
                 return(c);
 
         uint16_t padding = (4 - (length % 4)) % 4;
-        pkt->payload = (char *) malloc(sizeof(length + padding));
+        pkt->payload = (char *) malloc((length + padding) * sizeof(char));
         if(pkt->payload == NULL)
                 return(E_NOMEM);
 
