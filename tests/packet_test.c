@@ -2,11 +2,17 @@
 #include <CUnit/Basic.h>
 #include <CUnit/CUnit.h>
 #include <stdlib.h>
+#include <zlib.h>
 
 /* Test Suite setup and cleanup functions: */
 
-int init_suite(void) {return 0;}
-int clean_suite(void) {return 0;}
+int init_suite(void) {
+        return 0;
+}
+
+int clean_suite(void) {     
+        return 0;
+}
 
 /* Test case functions */
 
@@ -156,41 +162,266 @@ void test_pkt_payload(void) {
  * SECOND PART : Encode and decode
  */
 
-void CU_ASSERT_PKT_EQUAL(pkt_t * a, pkt_t * b) {
+void CU_ASSERT_PKT_EQUAL(pkt_t * a, pkt_t * b, int check_crc) {
         CU_ASSERT(pkt_get_type(a) == pkt_get_type(b));
         CU_ASSERT(pkt_get_window(a) == pkt_get_window(b));
         CU_ASSERT(pkt_get_seqnum(a) == pkt_get_seqnum(b));
         CU_ASSERT(pkt_get_length(a) == pkt_get_length(b));
         CU_ASSERT_STRING_EQUAL(pkt_get_payload(a), pkt_get_payload(b));
-        /*
-         * This line is not usefull since the packet before
-         * encoding doesn't contain the crc.
-         * CU_ASSERT(pkt_get_crc(a) == pkt_get_crc(b));
-         */
+
+        if(check_crc == 1) 
+                CU_ASSERT(pkt_get_crc(a) == pkt_get_crc(b));
+}
+
+void CU_ASSERT_PKT_HEADER_EQUAL(pkt_t * a, pkt_t * b) {
+        CU_ASSERT(pkt_get_type(a) == pkt_get_type(b));
+        CU_ASSERT(pkt_get_window(a) == pkt_get_window(b));
+        CU_ASSERT(pkt_get_seqnum(a) == pkt_get_seqnum(b));
+        CU_ASSERT(pkt_get_length(a) == pkt_get_length(b));
 }
 
 void encode(void) {
         /*
-         * Case 1 : everything is ok
+         * Case 1 : everything is ok.
+         * We are testing here if
+         * decode(encode(pkt)) == pkt
+         * and if PKT_OK is returned.
          */
         pkt_t * pkt1  = pkt_new();
         pkt_set_type(pkt1, PTYPE_DATA);
         pkt_set_window(pkt1, 15);
         pkt_set_seqnum(pkt1, 142);
+        // strlen(data1) = 27
         const char * data1 = "Lorem ipsum dolor sit amet.";
-        pkt_set_payload(pkt1, data1, strlen(data1));
+        pkt_set_payload(pkt1, data1, strlen(data1)); 
 
         pkt_t * pkt1_d = pkt_new();
 
         size_t len1 = 520;
         char * buf1 = (char *) malloc(len1*sizeof(char));
         CU_ASSERT(pkt_encode(pkt1, buf1, &len1) == PKT_OK);
-        CU_ASSERT(len1 == 36);
+        CU_ASSERT(len1 == 4 + 27 + 1 + 4);
         CU_ASSERT(pkt_decode(buf1, len1, pkt1_d) == PKT_OK);
-        CU_ASSERT_PKT_EQUAL(pkt1, pkt1_d);
+        CU_ASSERT_PKT_EQUAL(pkt1, pkt1_d, 0);
         
         pkt_del(pkt1);
         pkt_del(pkt1_d);
+        free(buf1);
+
+        /*
+         * Case 2 : buffer is too short.
+         * We are testing here if, in this
+         * case, encode returns E_NOMEM.
+         */
+        pkt_t * pkt2 = pkt_new();
+        pkt_set_type(pkt2, PTYPE_DATA);
+        pkt_set_window(pkt2, 2);
+        pkt_set_seqnum(pkt2, 212);
+        // strlen(data2) = 50
+        const char * data2 = "Lorem ipsum dolor sit amet,consectetur adipiscing elit. Quisque amet.";
+        pkt_set_payload(pkt2, data2, strlen(data2));
+        
+        size_t len2 = strlen(data2) / 2;
+        char * buf2 = (char *) malloc(len2*sizeof(char));
+        CU_ASSERT(pkt_encode(pkt2, buf2, &len2) == E_NOMEM);
+        CU_ASSERT(len2 == (size_t) strlen(data2) / 2);
+
+        pkt_del(pkt2);
+        free(buf2);
+}
+
+char * data;
+pkt_t * pkt;
+
+/*
+ * This function is used to
+ * recompute CRC easily when
+ * we apply modifications
+ * on the data stream used
+ * for testing decode. Useful
+ * to simulate a corruption
+ * caused by the network
+ * on the data AND on the CRC
+ * in such a way that data
+ * and CRC are still in
+ * accordance.
+ *
+ * Must me used only after
+ * set_data_for_decode
+ * has been used.
+ */
+void compute_crc_for_data(void) {
+        uint32_t crc = (uint32_t) crc32(0, (Bytef *) data, 8);
+        data[8] = (crc >> 24) & 0xFF;
+        data[9] = (crc >> 16) & 0xFF;
+        data[10] = (crc >> 8) & 0xFF;
+        data[11] = crc & 0xFF;
+}
+
+/*
+ * Idem for pkt.
+ */
+void compute_crc_for_pkt(void) {
+        uint32_t crc = (uint32_t) crc32(0, (Bytef *) data, 8);
+        pkt_set_crc(pkt, crc);
+}
+
+void set_data_for_decode(void) {        
+        /*
+         * This data stream is correct.
+         * We will modify it through this
+         * function to test every cases.
+         * CRC obtained from an online
+         * CRC32 calculator.
+         */
+        data = (char *) malloc(12 * sizeof(char));
+        data[0] = 0b00100010;
+        data[1] = 150;
+        data[2] = 0;
+        data[3] = 4;
+        data[4] = 'A';
+        data[5] = 'B';
+        data[6] = 'C';
+        data[7] = 'D';
+        compute_crc_for_data();
+
+        /*
+         * This packet corresponds
+         * to the data stream above.
+         */
+        pkt = pkt_new();
+        pkt_set_type(pkt, PTYPE_DATA);
+        pkt_set_window(pkt, 2);
+        pkt_set_seqnum(pkt, 150);
+        pkt_set_length(pkt, 4);
+        pkt_set_payload(pkt, "ABCD", 4);
+        compute_crc_for_pkt();
+}
+
+void del_data_for_decode(void) {
+        free(data);
+        pkt_del(pkt);
+}
+
+/* 
+ * Case 1 : data steam is correct.
+ */
+void decode_correct_case(void) {
+        set_data_for_decode();
+        pkt_t * pkt_d = pkt_new();
+
+        CU_ASSERT(pkt_decode(data, 12, pkt_d) == PKT_OK); 
+        CU_ASSERT_PKT_EQUAL(pkt_d, pkt, 1);
+
+        pkt_del(pkt_d);
+        del_data_for_decode();
+}
+
+/*
+ * Case 2 : this data stream
+ * is too short to contain
+ * a header (in fact only
+ * the length attribute of
+ * decode is too small).
+ */
+
+void decode_no_header(void) {
+        set_data_for_decode();
+        pkt_t * pkt_d = pkt_new();
+
+        CU_ASSERT(pkt_decode(data, 7, pkt_d) == E_NOHEADER);
+
+        pkt_del(pkt_d);
+        del_data_for_decode();
+}
+
+/*
+ * Case 3 : data stream
+ * has been corrupted !
+ */ 
+void decode_invalid_crc(void) {
+        set_data_for_decode();
+        data[5] = 'X';
+        pkt_t * pkt_d = pkt_new();
+
+        CU_ASSERT(pkt_decode(data, 12, pkt_d) == E_CRC);
+        CU_ASSERT_PKT_HEADER_EQUAL(pkt_d, pkt);
+
+        pkt_del(pkt_d);
+        del_data_for_decode();
+}
+
+/*
+ * Case 3bis : CRC has been
+ * corrupted !
+ */
+void decode_invalid_crc_bis(void) {
+        set_data_for_decode();
+        data[8] = 0;
+        pkt_t * pkt_d = pkt_new();
+
+        CU_ASSERT(pkt_decode(data, 12, pkt_d) == E_CRC);
+        CU_ASSERT_PKT_HEADER_EQUAL(pkt_d, pkt);
+
+        pkt_del(pkt_d);
+        del_data_for_decode();
+}
+
+/*
+ * Case 4 : the evil network
+ * corrupted the type and the CRC
+ * in such a way that CRC still
+ * corresponds to data
+ */
+void decode_invalid_type(void) {
+        set_data_for_decode();
+        data[0] = 0b01100010;
+        compute_crc_for_data();
+        pkt_t * pkt_d = pkt_new();
+
+        CU_ASSERT(pkt_decode(data, 12, pkt_d) == E_TYPE);
+
+        free(pkt_d);
+        del_data_for_decode();
+}
+
+/*
+ * Case 5 : the evil network
+ * corrupted the window and the CRC
+ * in such a way that CRC still
+ * corresponds to data
+ */
+void decode_invalid_window(void) {
+        /*
+         * Since window used 5 bits,
+         * the value parsed by decode
+         * will never be outside [0,31]
+         * and so E_WINDOW will never
+         * be returned.
+
+        set_data_for_decode();
+        data[0] = 255;
+        compute_crc_for_data();
+        pkt_t * pkt_d = pkt_new();
+
+        CU_ASSERT(pkt_decode(data, 12, pkt_d) == E_WINDOW);
+
+        free(pkt_d);
+        del_data_for_decode();
+        
+        */
+}
+
+/* 
+ * Case 6 : the evil network
+ * corrupted the seqnum and the
+ * CRC in such a way that CRC
+ * still corresponds to data
+ */
+void decode_invalid_seqnum(void) {
+        /*
+         * Same remark applies here
+         */
 }
 
 /* Test Runner Code goes here */
@@ -217,7 +448,14 @@ int main(void) {
                         (NULL == CU_add_test(basic, "length", test_pkt_length)) ||
                         (NULL == CU_add_test(basic, "crc", test_pkt_crc)) ||
                         (NULL == CU_add_test(basic, "payload", test_pkt_payload)) ||
-                        (NULL == CU_add_test(basic, "encode", encode))
+                        (NULL == CU_add_test(basic, "encode", encode)) ||
+                        (NULL == CU_add_test(basic, "decode correct case", decode_correct_case)) ||
+                        (NULL == CU_add_test(basic, "decode no header", decode_no_header)) ||
+                        (NULL == CU_add_test(basic, "decode invalid CRC", decode_invalid_crc)) ||
+                        (NULL == CU_add_test(basic, "decode invalid CRC bis", decode_invalid_crc_bis)) ||
+                        (NULL == CU_add_test(basic, "decode invalid type", decode_invalid_type)) ||
+                        (NULL == CU_add_test(basic, "decode invalid window", decode_invalid_window)) ||
+                        (NULL == CU_add_test(basic, "decode invalid seqnum", decode_invalid_seqnum))
                 ) 
         {
                 CU_cleanup_registry();

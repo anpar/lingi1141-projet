@@ -53,7 +53,7 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
         received_crc = (received_crc << 8) + (uint8_t) data[len-3];
         received_crc = (received_crc << 8) + (uint8_t) data[len-2];
         received_crc = (received_crc << 8) + (uint8_t) data[len-1];
-        uint32_t computed_crc = crc32(0L, (Bytef *) data, len-4);
+        uint32_t computed_crc = crc32(0L, (Bytef *) data, len-4); 
 
         /*
          * @return says that unless the error is E_NOHEADER,
