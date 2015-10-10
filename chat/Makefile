@@ -20,10 +20,16 @@ real_address.o: real_address.c real_address.h
 wait_for_client.o: wait_for_client.c wait_for_client.h
 	gcc $(CFLAGS) -c wait_for_client.c
 
+test.o: test.c
+	gcc $(CFLAGS) -c test.c
+
+test: test.o read_write_loop.o create_socket.o real_address.o wait_for_client.o
+	gcc $(CFLAGS) -o test test.o read_write_loop.o create_socket.o real_address.o wait_for_client.o -lcunit
+	./test
+
 clean:
 	rm -rf *.o
-
-mr-proper: clean
 	rm -rf chat
+	rm -rf test
 	rm -rf *.c~
 	rm -rf *.h~
