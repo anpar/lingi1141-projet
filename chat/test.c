@@ -63,9 +63,6 @@ void test_real_address(void) {
         CU_ASSERT(t != NULL);
         CU_ASSERT_STRING_EQUAL(dst, "::1");
 
-        
-
-
         free(dst);
         free(rval);
 }

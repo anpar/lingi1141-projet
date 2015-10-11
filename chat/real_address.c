@@ -36,7 +36,10 @@ const char * real_address(const char * address, struct sockaddr_in6 * rval) {
         printf("result->ai_protocol : %d.\n", result->ai_protocol);
         printf("result->ai_flags : %d.\n", result->ai_flags);
         printf("result->ai_addr->sa_family : %d.\n\n", result->ai_addr->sa_family);*/
-
+        
+        /*
+         * FIX : toujours un doute sur ce cast.
+         */
         struct sockaddr_in6 * saddr = (struct sockaddr_in6 *) result->ai_addr;  
         memcpy(rval, saddr, sizeof(struct sockaddr_in6));
         
