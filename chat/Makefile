@@ -1,4 +1,4 @@
-CFLAGS=-Wall -Werror -Wshadow -Wextra
+CFLAGS=-Wall -Werror -Wshadow -Wextra -g
 
 all: chat
 
