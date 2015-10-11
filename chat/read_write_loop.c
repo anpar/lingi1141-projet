@@ -60,6 +60,7 @@ void read_write_loop(int sfd) {
                                                         fprintf(stderr, "Reading from the socket and writing on stdout.\n");
                                                         fwrite(buf, 1, 1, f);
                                                 }
+                                                fprintf(stderr, "Stop writing on stdout.\n");
 
                                                 fclose(f);
                                         }
@@ -70,14 +71,15 @@ void read_write_loop(int sfd) {
                                                         fprintf(stderr, "Reading from stdin and writing on the socket.\n");
                                                         write(sfd, buf, 1);
                                                 }
-                                                
+                                                fprintf(stderr, "Stop writing on the socket.\n");
+
                                                 eof_reached = 1;
                                                 fclose(f);
                                         }
                                 }
                 
                                 /* Un fd est disponible en écriture */
-                                if(fds[i].revents & POLLOUT) {
+                                if(fds[i].revents & POLLWRNORM) {
                                         fprintf(stderr, "fd[%d] disponible en écriture.\n", i);
                                         /* Ce fd est le socket */
                                         if(i == 0) {
@@ -86,6 +88,7 @@ void read_write_loop(int sfd) {
                                                         fprintf(stderr, "Reading from stdin and writing on socket.\n");
                                                         write(sfd, buf, 1);
                                                 }
+                                                fprintf(stderr, "Stop writing on socket.\n");        
 
                                                 eof_reached = 1;
                                                 fclose(f);
@@ -97,6 +100,7 @@ void read_write_loop(int sfd) {
                                                         fprintf(stderr, "Reading from socket and writing on stdout.\n");
                                                         fwrite(buf, 1, 1, f);
                                                 }
+                                                fprintf(stderr, "Stop writing on stdout.\n");        
 
                                                 fclose(f);
                                         }
