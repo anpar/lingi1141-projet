@@ -26,7 +26,7 @@ int wait_for_client(int sfd){
         socklen_t peer_addr_len = sizeof(struct sockaddr_in6);
         
         fprintf(stderr, "Before recvfrom().\n");
-        nread = recvfrom(sfd, buf, BUF_SIZE, 0, (struct sockaddr *) &peer_addr, &peer_addr_len);
+        nread = recvfrom(sfd, buf, BUF_SIZE, MSG_PEEK, (struct sockaddr *) &peer_addr, &peer_addr_len);
         fprintf(stderr, "After recvfrom().\n");
         if(nread >= 0) {
                 if(connect(sfd, (const struct sockaddr *) &peer_addr, peer_addr_len) == 0) {
