@@ -67,6 +67,10 @@ void test_real_address(void) {
         free(rval);
 }
 
+void test_create_socket(void) {
+
+}
+
 /* Test Runner Code goes here */
 int main(void) {
         CU_pSuite basic = NULL;
@@ -85,7 +89,8 @@ int main(void) {
 
         /* add the tests to the suite */
         if      (
-                        (NULL == CU_add_test(basic, "test_real_address", test_real_address))
+                        (NULL == CU_add_test(basic, "test_real_address", test_real_address)) ||
+                        (NULL == CU_add_test(basic, "test_create_socket", test_create_socket))
                 )
         {
                 CU_cleanup_registry();
