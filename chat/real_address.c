@@ -10,13 +10,13 @@
 #include <stdlib.h>
 
 const char * real_address(const char * address, struct sockaddr_in6 * rval) {
-    
-        fprintf(stderr,"FONCTION real_address \n");
-
         struct addrinfo hints;
         struct addrinfo * result;
         int s;
     
+        if(rval == NULL)
+                return("rval can't be NULL.\n");
+
          /* Initialize hints */
         memset(&hints, 0, sizeof(struct addrinfo));
         hints.ai_family = AF_INET6;
@@ -26,24 +26,20 @@ const char * real_address(const char * address, struct sockaddr_in6 * rval) {
         hints.ai_canonname = NULL;
         hints.ai_addr = NULL;
         hints.ai_next = NULL;
-	
-        s = getaddrinfo(address, NULL, NULL, &result);
+
+        s = getaddrinfo(address, NULL, &hints, &result);
         if(s != 0)
                 return(gai_strerror(s));
   
-        printf("result->ai_family : %d.\n", result->ai_family);
+        /*printf("result->ai_family : %d.\n", result->ai_family);
         printf("result->ai_socktype : %d.\n", result->ai_socktype);
         printf("result->ai_protocol : %d.\n", result->ai_protocol);
         printf("result->ai_flags : %d.\n", result->ai_flags);
-        printf("result->ai_addr->sa_family : %d.\n", result->ai_addr->sa_family);
-        char * dst = (char *) malloc(40*sizeof(char));
-        struct sockaddr_in * saddr = (struct sockaddr_in *) result->ai_addr;
-        const char * t  = inet_ntop(AF_INET6, saddr, dst, 40);
-        if(t == NULL) {printf("error");}
-        printf("result->ai_addr->sa_data : %s.\n", dst);
+        printf("result->ai_addr->sa_family : %d.\n\n", result->ai_addr->sa_family);*/
 
-        rval = (struct sockaddr_in6 *) result->ai_addr;
-        rval = rval;
+        struct sockaddr_in6 * saddr = (struct sockaddr_in6 *) result->ai_addr;  
+        memcpy(rval, saddr, sizeof(struct sockaddr_in6));
+        
         /* Free result addrinfo */
         freeaddrinfo(result);
 
