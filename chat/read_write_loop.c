@@ -60,6 +60,8 @@ void read_write_loop(int sfd) {
                                                         fprintf(stderr, "Reading from the socket and writing on stdout.\n");
                                                         fwrite(buf, 1, 1, f);
                                                 }
+
+                                                fclose(f);
                                         }
                                         /* Ce fd est stdin */
                                         if(i == 1) {
@@ -68,13 +70,14 @@ void read_write_loop(int sfd) {
                                                         fprintf(stderr, "Reading from stdin and writing on the socket.\n");
                                                         write(sfd, buf, 1);
                                                 }
-                        
+                                                
                                                 eof_reached = 1;
+                                                fclose(f);
                                         }
                                 }
                 
                                 /* Un fd est disponible en écriture */
-                                if(fds[i].revents & POLLWRNORM) {
+                                if(fds[i].revents & POLLOUT) {
                                         fprintf(stderr, "fd[%d] disponible en écriture.\n", i);
                                         /* Ce fd est le socket */
                                         if(i == 0) {
@@ -83,6 +86,9 @@ void read_write_loop(int sfd) {
                                                         fprintf(stderr, "Reading from stdin and writing on socket.\n");
                                                         write(sfd, buf, 1);
                                                 }
+
+                                                eof_reached = 1;
+                                                fclose(f);
                                         }
                                         /* Ce fd est stdout */
                                         if(i == 2) {
@@ -91,6 +97,8 @@ void read_write_loop(int sfd) {
                                                         fprintf(stderr, "Reading from socket and writing on stdout.\n");
                                                         fwrite(buf, 1, 1, f);
                                                 }
+
+                                                fclose(f);
                                         }
                                 }
         	        }
@@ -100,6 +108,8 @@ void read_write_loop(int sfd) {
                         fprintf(stderr, "poll() failed : %s.\n", strerror(errno));
                 }
         }
+
+        fprintf(stderr, "Leaving read_write_loop.\n");
     
         free(buf);
 }
