@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <netinet/in.h> 
+#include <netinet/in.h>
 #include <errno.h>
 #include <string.h>
 
@@ -19,26 +19,23 @@
  * and could be repeated several times blocking only at the first call.
  */
 
-int wait_for_client(int sfd){ 
-        char buf[BUF_SIZE];
-        int nread;
-        struct sockaddr_in6 peer_addr; 
-        socklen_t peer_addr_len = sizeof(struct sockaddr_in6);
-        
-        fprintf(stderr, "Before recvfrom().\n");
-        nread = recvfrom(sfd, buf, BUF_SIZE, MSG_PEEK, (struct sockaddr *) &peer_addr, &peer_addr_len);
-        fprintf(stderr, "After recvfrom().\n");
-        if(nread >= 0) {
-                if(connect(sfd, (const struct sockaddr *) &peer_addr, peer_addr_len) == 0) {
-                        return(0);
-                }
+int wait_for_client(int sfd){
+    char buf[BUF_SIZE];
+    int nread;
+    struct sockaddr_in6 peer_addr;
+    socklen_t peer_addr_len = sizeof(struct sockaddr_in6);
 
-                fprintf(stderr,"connect() failed.\n");
-                return(-1);
-        } else {
-                fprintf(stderr,"recvfrom() failed and returned %d.\n", nread);
-                fprintf(stderr, "errno : %s.\n", strerror(errno));
-                return(-1);      
+    fprintf("Server waiting the first message from the client...\n");
+    nread = recvfrom(sfd, buf, BUF_SIZE, MSG_PEEK, (struct sockaddr *) &peer_addr, &peer_addr_len);
+    if(nread >= 0) {
+        if(connect(sfd, (const struct sockaddr *) &peer_addr, peer_addr_len) == 0) {
+            fprintf("Server is connected to the client.\n");
+            return(0);
         }
-}
 
+        return(-1);
+    } else {
+        perror("recvfrom()");
+        return(-1);
+    }
+}

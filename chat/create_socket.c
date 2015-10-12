@@ -17,49 +17,38 @@
  */
 
 int create_socket(struct sockaddr_in6 *source_addr, int src_port, struct sockaddr_in6 *dest_addr, int dst_port) {
+    int sockfd = socket(AF_INET6, SOCK_DGRAM, 17);
 
-        fprintf(stderr,"FONCTION create_socket.\n");
+    if(sockfd == -1) {
+        fprintf(stderr,"socket() failed.\n");
+        return(-1);
+    }
 
-        int sockfd = socket(AF_INET6, SOCK_DGRAM, 17);
-        
-        if(sockfd == -1) {
-                fprintf(stderr,"socket() failed.\n");
-                return(-1);
+    /* The client is calling create_socket */
+    if(source_addr != NULL) {
+        socklen_t addrlen = sizeof(*source_addr);
+
+        if(src_port > 0)
+            source_addr->sin6_port = src_port;
+
+        if(bind(sockfd, (struct sockaddr *) source_addr, addrlen)  == -1) {
+            fprintf(stderr,"bind() failed : %s.\n", strerror(errno));
+            return(-1);
         }
+    }
 
-        /*
-         * The client is calling create_socket
-         */
-        if(source_addr != NULL) { 
-                socklen_t addrlen = sizeof(*source_addr);
-                
-                if(src_port > 0)
-                        source_addr->sin6_port = src_port;
-                
-                if(bind(sockfd, (struct sockaddr *) source_addr, addrlen)  == -1) {
-                        fprintf(stderr,"bind() failed : %s.\n", strerror(errno));
-                        return(-1);
-                }
-        } else {
-                 fprintf(stderr,"source_addr is null.\n");
+    /* The server is calling create_socket */
+    if(dest_addr != NULL) {
+        socklen_t addrlen = sizeof(*dest_addr);
+
+        if(dst_port > 0)
+            dest_addr->sin6_port = dst_port;
+
+        if(connect(sockfd, (struct sockaddr *) dest_addr, addrlen)  == -1) {
+            fprintf(stderr,"connect() failed : %s.\n", strerror(errno));
+            return(-1);
         }
-      
-        /*
-         * The server is calling create_socket
-         */
-        if(dest_addr != NULL) {
-                socklen_t addrlen = sizeof(*dest_addr);
+    }
 
-                if(dst_port > 0)
-                        dest_addr->sin6_port = dst_port;
-                
-                if(connect(sockfd, (struct sockaddr *) dest_addr, addrlen)  == -1) {
-                        fprintf(stderr,"connect() failed : %s.\n", strerror(errno));
-                        return(-1);
-                }
-        } else {
-                 fprintf(stderr,"dest_addr nulle.\n");
-        }
-
-        return(sockfd);
+    return(sockfd);
 }

@@ -45,19 +45,17 @@ void read_write_loop(int sfd) {
             /* Characacters become available for reading on stdin, we have
             to directly write those characacters on the socket */
             if (FD_ISSET(STDIN_FILENO, &readfds) && FD_ISSET(sfd, &writefds)) {
-                fprintf(stderr, "Reading on stdin and writing on the socket.\n");
+                fprintf(stderr, "Reading on stdin and writing on the socket ");
                 ssize_t read_on_stdin = read(STDIN_FILENO, buf, BUF_SIZE);
                 if (read_on_stdin == -1) {
                     perror("read()");
                     return;
                 } else if (read_on_stdin == 0) {
-                    fprintf(stderr, "read_on_stdin == EOF\n");
+                    fprintf(stderr, "(EOF).\n");
                     return;
                 }
 
-                fprintf(stderr, "EOF = %d.\n", EOF);
-                fprintf(stderr, "read_on_stdin = %d\n", (int) read_on_stdin);
-                fprintf(stderr, "buf[0] = %c\n", buf[0]);
+                fprintf(stderr, "(%d bytes).\n", (int) read_on_stdin);
 
                 ssize_t written_on_socket = 0;
                 while (written_on_socket != read_on_stdin) {
@@ -74,15 +72,17 @@ void read_write_loop(int sfd) {
             /* Characacters become available for reading on the socket, we have
             to directly write those characacters on stdout */
             if (FD_ISSET(sfd, &readfds) && FD_ISSET(STDOUT_FILENO, &writefds) && !eof_reached) {
-                fprintf(stderr, "Reading on the socket and writing on stdout.\n");
+                fprintf(stderr, "Reading on the socket and writing on stdout ");
                 ssize_t read_on_socket = read(sfd, buf, BUF_SIZE);
                 if (read_on_socket == -1) {
                     perror("read()");
                     return;
                 } else if (read_on_socket == 0) {
                     eof_reached = 1;
-                    fprintf(stderr, "read_on_socket == EOF");
+                    fprintf(stderr, "(EOF).\n");
                 }
+
+                fprintf(stderr, "(%d bytes).\n", (int) read_on_socket);
 
                 ssize_t written_on_stdout = 0;
                 while (written_on_stdout != read_on_socket) {
