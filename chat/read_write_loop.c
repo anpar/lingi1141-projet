@@ -51,6 +51,7 @@ void read_write_loop(int sfd) {
                     perror("read()");
                     return;
                 } else if (read_on_stdin == 0) {
+                    eof_reached = 1;
                     fprintf(stderr, "(EOF).\n");
                     return;
                 }

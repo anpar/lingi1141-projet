@@ -25,11 +25,11 @@ int wait_for_client(int sfd){
     struct sockaddr_in6 peer_addr;
     socklen_t peer_addr_len = sizeof(struct sockaddr_in6);
 
-    fprintf("Server waiting the first message from the client...\n");
+    fprintf(stderr, "Server waiting the first message from the client...\n");
     nread = recvfrom(sfd, buf, BUF_SIZE, MSG_PEEK, (struct sockaddr *) &peer_addr, &peer_addr_len);
     if(nread >= 0) {
         if(connect(sfd, (const struct sockaddr *) &peer_addr, peer_addr_len) == 0) {
-            fprintf("Server is connected to the client.\n");
+            fprintf(stderr, "Server is connected to the client.\n");
             return(0);
         }
 
