@@ -50,10 +50,14 @@ void read_write_loop(int sfd) {
                 if (read_on_stdin == -1) {
                     perror("read()");
                     return;
-                } else if (read_on_stdin == EOF) {
-                    fprintf(stderr, "read_on_stdin == EOF");
+                } else if (read_on_stdin == 0) {
+                    fprintf(stderr, "read_on_stdin == EOF\n");
                     return;
                 }
+
+                fprintf(stderr, "EOF = %d.\n", EOF);
+                fprintf(stderr, "read_on_stdin = %d\n", (int) read_on_stdin);
+                fprintf(stderr, "buf[0] = %c\n", buf[0]);
 
                 ssize_t written_on_socket = 0;
                 while (written_on_socket != read_on_stdin) {
@@ -75,7 +79,7 @@ void read_write_loop(int sfd) {
                 if (read_on_socket == -1) {
                     perror("read()");
                     return;
-                } else if (read_on_socket == EOF) {
+                } else if (read_on_socket == 0) {
                     eof_reached = 1;
                     fprintf(stderr, "read_on_socket == EOF");
                 }
