@@ -22,7 +22,7 @@ const char * real_address(const char * address, struct sockaddr_in6 * rval) {
     hints.ai_family = AF_INET6;
     hints.ai_socktype = SOCK_DGRAM;
     hints.ai_protocol = 17;
-    hints.ai_flags = AI_PASSIVE;
+    hints.ai_flags = 0;
     hints.ai_canonname = NULL;
     hints.ai_addr = NULL;
     hints.ai_next = NULL;
@@ -32,7 +32,7 @@ const char * real_address(const char * address, struct sockaddr_in6 * rval) {
             return(gai_strerror(s));
 
     struct sockaddr_in6 * saddr = (struct sockaddr_in6 *) result->ai_addr;
-    memcpy(rval, saddr, sizeof(struct sockaddr_in6));
+    memcpy(rval, saddr, result->ai_addrlen);
 
     /* Free result addrinfo */
     freeaddrinfo(result);

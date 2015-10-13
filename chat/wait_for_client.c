@@ -23,6 +23,7 @@ int wait_for_client(int sfd){
     char buf[BUF_SIZE];
     int nread;
     struct sockaddr_in6 peer_addr;
+	peer_addr.sin6_family = AF_INET6;
     socklen_t peer_addr_len = sizeof(struct sockaddr_in6);
 
     fprintf(stderr, "Server waiting the first message from the client...\n");
