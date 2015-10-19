@@ -19,10 +19,6 @@ void read_write_loop(int sfd) {
     fd_set readfds, writefds;
     char buf[BUF_SIZE];
 
-    /* Initialize variables */
-    //timeout.tv_sec = 60;
-    //timeout.tv_usec = 0;
-
     while (1) {
         FD_SET(STDIN_FILENO, &readfds);     // We can read on stdin
         FD_SET(sfd, &writefds);             // We can write on the socket
