@@ -1,9 +1,10 @@
 language: c
 compiler: gcc
+sudo: required
+before_install:
+  - sudo apt-get update -qq
+  - sudo apt-get install -y libcunit1
+  - sudo apt-get install -y libcunit1-dev
+  - sudo apt-get install -y libcunit1-doc
+install: true
 script: make test
-addons:
-	apt:
-		packages:
-		- libcunit1
-		- libcunit1-doc
-		- libcunit1-dev
