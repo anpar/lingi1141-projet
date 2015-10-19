@@ -1,4 +1,9 @@
 language: c
 compiler: gcc
-install: ./install_cunit.sh
 script: make test
+addons:
+	apt:
+		packages:
+		- libcunit1
+		- libcunit1-doc
+		- libcunit1-dev
