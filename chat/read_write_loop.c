@@ -14,7 +14,6 @@
  */
 void read_write_loop(int sfd) {
     /* Declare variables */
-    //struct timeval timeout;
     int retval;
     fd_set readfds, writefds;
     char buf[BUF_SIZE];
