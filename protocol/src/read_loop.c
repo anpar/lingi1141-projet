@@ -1,5 +1,3 @@
-#include "read_loop.h"
-
 #include <stdio.h>      /* perror, STDOUT_FILENO, fprintf */
 #include <stdbool.h>    /* true, false */
 #include <unistd.h>		/* close, read, write */
@@ -7,18 +5,13 @@
 #include <stdlib.h>		/* malloc, free */
 #include <sys/select.h> /* select */
 
-#include "packet_interface.h"
-
-#define WIN_SIZE 31
-#define MAX_PKT_SIZE 520
+#include "read_loop.h"
 
 struct window {
 	pkt_t * buffer[31];
 	uint8_t last_in_seq;
 	uint8_t free_space;
 };
-
-typedef struct window win;
 
 /*
  * Initialise la fenêtre de réception.
