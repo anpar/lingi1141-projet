@@ -20,6 +20,9 @@ struct window {
 
 typedef struct window win;
 
+/*
+ * Initialise la fenêtre de réception.
+ */
 win * init_window()
 {
 	win *w = (win *) malloc(sizeof(win));
@@ -32,17 +35,29 @@ win * init_window()
 	return w;
 }
 
+/*
+ * Libère l'espace alloué pour la fenêtre
+ * de réception.
+ */
 void free_window(win * rwin)
 {
 	free(rwin);
 	rwin = NULL;
 }
 
+/*
+ * Décale la fenêtre et affiche sur out_fd les élements
+ * en séquences dans la fenêtre (s'il y en a).
+ */
 void shift_window(win * rwin, int out_fd) 
 {
 	
 }
 
+/*
+ * Retourne true si le numéro de séquence
+ * rentre dans la fenre, false sinon.
+ */
 bool in_window(win * rwin, uint8_t seqnum) 
 {
 	int max = (rwin->last_in_seq + WIN_SIZE) % 256;
