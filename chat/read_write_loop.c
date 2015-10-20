@@ -14,14 +14,9 @@
  */
 void read_write_loop(int sfd) {
     /* Declare variables */
-    //struct timeval timeout;
     int retval;
     fd_set readfds, writefds;
     char buf[BUF_SIZE];
-
-    /* Initialize variables */
-    //timeout.tv_sec = 60;
-    //timeout.tv_usec = 0;
 
     while (1) {
         FD_SET(STDIN_FILENO, &readfds);     // We can read on stdin

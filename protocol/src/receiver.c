@@ -12,7 +12,7 @@ int main(int argc, char *argv[])
 {
 	int port;
 	char *host;
-	char * filename;
+	char * filename = NULL;
 
 	int opt;
 	int option_index = 0;

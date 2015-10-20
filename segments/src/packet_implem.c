@@ -41,6 +41,7 @@ void pkt_del(pkt_t *pkt)
 
 pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 {
+<<<<<<< HEAD
 	if(len < 4)
 	return(E_NOHEADER);
 
@@ -102,6 +103,68 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 	return(c6);
 
 	return(PKT_OK);
+=======
+        if(len < 4)
+	  return(E_NOHEADER);
+	
+        /*
+         * @return says that unless the error is E_NOHEADER,
+         * the packet has at least the values of the header
+         * found in the data stream. So, we first add the
+         * values of the header and then only check the
+         * return values of the setters used.
+         */
+        pkt_status_code c1 = pkt_set_type(pkt, data[0] >> 5);
+        pkt_status_code c2 = pkt_set_window(pkt, data[0] & 0b00011111);
+        pkt_status_code c3 = pkt_set_seqnum(pkt, data[1]);
+        pkt_status_code c4 = pkt_set_length(pkt, (data[2] << 8) | data[3]);
+        
+        if(c1 != PKT_OK) {return(c1);}
+        if(c2 != PKT_OK) {return(c2);}
+        if(c3 != PKT_OK) {return(c3);}
+        if(c4 != PKT_OK) {return(c4);}
+        
+        /*
+         * Le paquet a été coupé par un routeur à cause de la
+         * congestion (mais il est quand même valide).
+         */
+        if(len == 4)
+	  return(PKT_OK);
+			
+	if(len != 4 && pkt_get_type(pkt) != PTYPE_DATA)
+	  return(E_UNCONSISTENT);
+			
+        if(len < 8)
+	  return(E_UNCONSISTENT);
+        
+        uint32_t received_crc = (uint8_t) data[len-4];
+        received_crc = (received_crc << 8) + (uint8_t) data[len-3];
+        received_crc = (received_crc << 8) + (uint8_t) data[len-2];
+        received_crc = (received_crc << 8) + (uint8_t) data[len-1];
+        uint32_t computed_crc = crc32(0L, (Bytef *) data, len-4); 
+        
+        if(received_crc != computed_crc)
+                return(E_CRC);
+
+        pkt_status_code c5 = pkt_set_crc(pkt, received_crc);
+        if(c5 != PKT_OK) {return(c5);}
+
+        if(len == 8) {return(E_NOPAYLOAD);}
+        if(len % 4 != 0) {return(E_PADDING);}
+
+        uint16_t padding = (4 - (pkt_get_length(pkt) % 4)) % 4;
+        if((4 + pkt_get_length(pkt) + padding + 4) != (uint16_t) len)
+		 return(E_UNCONSISTENT);
+         
+        if(pkt_get_type(pkt) != PTYPE_DATA && pkt_get_length(pkt) != 0)
+	       	return(E_UNCONSISTENT);
+
+        pkt_status_code c6 = pkt_set_payload(pkt, data+4, pkt_get_length(pkt));
+        if(c6 != PKT_OK)
+                return(c6);
+
+        return(PKT_OK);
+>>>>>>> 0d3d5138a57e92073ba5c29f87d9ac986880843b
 }
 
 pkt_status_code pkt_encode(const pkt_t* pkt, char *buf, size_t *len)
