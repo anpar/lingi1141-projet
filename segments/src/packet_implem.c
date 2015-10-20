@@ -34,16 +34,16 @@ void pkt_del(pkt_t *pkt)
 {
         if(pkt->payload != NULL)
                 free(pkt->payload);
-        
+
         if(pkt != NULL)
-                free(pkt);    
+                free(pkt);
 }
 
 pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 {
         if(len < 4)
-			return(E_NOHEADER);
-        
+	  return(E_NOHEADER);
+	
         /*
          * @return says that unless the error is E_NOHEADER,
          * the packet has at least the values of the header
@@ -66,13 +66,13 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
          * congestion (mais il est quand même valide).
          */
         if(len == 4)
-			return(PKT_OK);
+	  return(PKT_OK);
 			
-		if(len != 4 && pkt_get_type(pkt) != PTYPE_DATA)
-			return(E_UNCONSISTENT);
+	if(len != 4 && pkt_get_type(pkt) != PTYPE_DATA)
+	  return(E_UNCONSISTENT);
 			
         if(len < 8)
-			return(E_UNCONSISTENT);
+	  return(E_UNCONSISTENT);
         
         uint32_t received_crc = (uint8_t) data[len-4];
         received_crc = (received_crc << 8) + (uint8_t) data[len-3];
@@ -86,16 +86,15 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
         pkt_status_code c5 = pkt_set_crc(pkt, received_crc);
         if(c5 != PKT_OK) {return(c5);}
 
-        
         if(len == 8) {return(E_NOPAYLOAD);}
         if(len % 4 != 0) {return(E_PADDING);}
 
         uint16_t padding = (4 - (pkt_get_length(pkt) % 4)) % 4;
         if((4 + pkt_get_length(pkt) + padding + 4) != (uint16_t) len)
-			return(E_UNCONSISTENT);
+		 return(E_UNCONSISTENT);
          
         if(pkt_get_type(pkt) != PTYPE_DATA && pkt_get_length(pkt) =! 0)
-			return(E_UNCONSISTENT);
+	       	return(E_UNCONSISTENT);
 
         pkt_status_code c6 = pkt_set_payload(pkt, data+4, pkt_get_length(pkt));
         if(c6 != PKT_OK)
@@ -106,11 +105,11 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 
 pkt_status_code pkt_encode(const pkt_t* pkt, char *buf, size_t *len)
 {
-        buf[0] = (pkt_get_type(pkt) << 5) | pkt_get_window(pkt); 
+        buf[0] = (pkt_get_type(pkt) << 5) | pkt_get_window(pkt);
         buf[1] = pkt_get_seqnum(pkt);
         buf[2] = (pkt_get_length(pkt) >> 8) & 0xFF;
         buf[3] = pkt_get_length(pkt) & 0xFF;
-        
+
         /*
          * Writing the payload in the buffer. First
          * condition allows to detect the end of the
@@ -145,7 +144,7 @@ pkt_status_code pkt_encode(const pkt_t* pkt, char *buf, size_t *len)
         buf[i+5] = (crc >> 16) & 0xFF;
         buf[i+6] = (crc >> 8) & 0xFF;
         buf[i+7] = crc & 0xFF;
-        
+
         /*
          * Total number of bytes written : 4 for the header,
          * pkt_get_length(pkt) for the useful part of payload,
@@ -158,7 +157,7 @@ pkt_status_code pkt_encode(const pkt_t* pkt, char *buf, size_t *len)
 
 ptypes_t pkt_get_type  (const pkt_t* pkt)
 {
-        return(pkt->type);	
+        return(pkt->type);
 }
 
 uint8_t  pkt_get_window(const pkt_t* pkt)
@@ -191,7 +190,7 @@ pkt_status_code pkt_set_type(pkt_t *pkt, const ptypes_t type)
 {
         if(type != PTYPE_DATA && type != PTYPE_ACK && type != PTYPE_NACK)
                 return(E_TYPE);
-        
+
         pkt->type = type;
         return(PKT_OK);
 }
@@ -210,7 +209,7 @@ pkt_status_code pkt_set_seqnum(pkt_t *pkt, const uint8_t seqnum)
         /*
          * seqnum will never be outside of [0,255] thanks
          * to its type (uint8_t), so no verification needed.
-         * FIX : 
+         * FIX :
          */
         pkt->seqnum = seqnum;
         return(PKT_OK);
@@ -239,7 +238,7 @@ pkt_status_code pkt_set_payload(pkt_t *pkt, const char *data,
                 return(c);
 
         uint16_t padding = (4 - (length % 4)) % 4;
-        
+
         /*
          * If pkt->payload is already allocated
          * with malloc (!= NULL), then we have
@@ -253,7 +252,7 @@ pkt_status_code pkt_set_payload(pkt_t *pkt, const char *data,
                 return(E_NOMEM);
 
         int i;
-        for(i = 0; i < length; i++) { 
+        for(i = 0; i < length; i++) {
                 pkt->payload[i] = data[i];
         }
 
@@ -262,6 +261,6 @@ pkt_status_code pkt_set_payload(pkt_t *pkt, const char *data,
                 i++;
                 padding--;
         }
-         
+
         return(PKT_OK);
 }

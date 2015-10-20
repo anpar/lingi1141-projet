@@ -10,7 +10,7 @@ int init_suite(void) {
         return 0;
 }
 
-int clean_suite(void) {     
+int clean_suite(void) {
         return 0;
 }
 
@@ -21,8 +21,8 @@ int clean_suite(void) {
  */
 void test_pkt_type(void) {
         pkt_t * pkt = pkt_new();
-       
-        /* 
+
+        /*
          * On teste si l'assignation d'un type invalide
          * retourne bien E_TYPE et que la valeur du type
          * après cette assignation invalide est bien
@@ -31,7 +31,7 @@ void test_pkt_type(void) {
         CU_ASSERT(pkt_set_type(pkt ,3) == E_TYPE);
         CU_ASSERT(pkt_get_type(pkt) != 3);
 
-        /* 
+        /*
          * On teste si l'assignation d'un type valide
          * retourne bien PKT_OK et fonctionne correctement.
          * On vérifie également que pkt_get_type ne modifie
@@ -62,7 +62,7 @@ void test_pkt_window(void) {
         CU_ASSERT(pkt_set_window(pkt, -1) == E_WINDOW);
         CU_ASSERT(pkt_set_window(pkt, MAX_WINDOW_SIZE+1) == E_WINDOW);
         CU_ASSERT(pkt_get_window(pkt) != MAX_WINDOW_SIZE+1);
-        
+
         int i;
         for(i = 0; i <= MAX_WINDOW_SIZE; i++) {
                 CU_ASSERT(pkt_set_window(pkt, i) == PKT_OK);
@@ -97,7 +97,7 @@ void test_pkt_seqnum(void) {
         CU_ASSERT(pkt_get_seqnum(pkt) == i-1);
         pkt_del(pkt);
 }
- 
+
 void test_pkt_length(void) {
         pkt_t * pkt = pkt_new();
 
@@ -112,7 +112,7 @@ void test_pkt_length(void) {
         for(i = 0; i <= MAX_PAYLOAD_SIZE; i++) {
                 CU_ASSERT(pkt_set_length(pkt, i) == PKT_OK);
                 CU_ASSERT(pkt_get_length(pkt) == i);
-        } 
+        }
 
         CU_ASSERT(pkt_get_length(pkt) == i-1);
 
@@ -130,7 +130,7 @@ void test_pkt_payload(void) {
          * First case : data is empty.
          */
         CU_ASSERT(pkt_set_payload(pkt, NULL, 0) == PKT_OK);
-        CU_ASSERT(pkt_get_length(pkt) == 0);        
+        CU_ASSERT(pkt_get_length(pkt) == 0);
         /*
          * Second case : data doesn't need a padding
          */
@@ -138,7 +138,7 @@ void test_pkt_payload(void) {
         CU_ASSERT(pkt_get_length(pkt) == 4);
         CU_ASSERT_STRING_EQUAL(pkt_get_payload(pkt), "ABCD");
         CU_ASSERT_STRING_EQUAL(pkt_get_payload(pkt), "ABCD");
-        
+
         /*
          * Third case : data needs a padding
          */
@@ -149,7 +149,7 @@ void test_pkt_payload(void) {
         /*
          * Fourth case : data is too long
          */
-        const char * data = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Fusce sed nibh porttitor, aliquet elit id, cursus nulla. Curabitur in risus molestie, ornare nulla nec, condimentum velit. Aenean placerat ante iaculis, ultrices metus et, tristique enim. Curabitur vitae lorem enim. Donec id mauris quis augue convallis dictum. Nam lacinia in ligula ac rhoncus. Nam fringilla justo ut dui fermentum vehicula. In scelerisque neque sed posuere pulvinar. Ut tincidunt ac nunc eget consectetur. Nam tempor tellus at placerat mollis. Etiam eget ultricies eros. In elementum mauris eu scelerisque efficitur volutpat."; 
+        const char * data = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Fusce sed nibh porttitor, aliquet elit id, cursus nulla. Curabitur in risus molestie, ornare nulla nec, condimentum velit. Aenean placerat ante iaculis, ultrices metus et, tristique enim. Curabitur vitae lorem enim. Donec id mauris quis augue convallis dictum. Nam lacinia in ligula ac rhoncus. Nam fringilla justo ut dui fermentum vehicula. In scelerisque neque sed posuere pulvinar. Ut tincidunt ac nunc eget consectetur. Nam tempor tellus at placerat mollis. Etiam eget ultricies eros. In elementum mauris eu scelerisque efficitur volutpat.";
         CU_ASSERT(pkt_set_payload(pkt, data, strlen(data)) == E_LENGTH);
         CU_ASSERT(pkt_get_length(pkt) != strlen(data));
         CU_ASSERT_STRING_NOT_EQUAL(pkt_get_payload(pkt), data);
@@ -168,7 +168,7 @@ void CU_ASSERT_PKT_EQUAL(pkt_t * a, pkt_t * b, int check_crc) {
         CU_ASSERT(pkt_get_length(a) == pkt_get_length(b));
         CU_ASSERT_STRING_EQUAL(pkt_get_payload(a), pkt_get_payload(b));
 
-        if(check_crc == 1) 
+        if(check_crc == 1)
                 CU_ASSERT(pkt_get_crc(a) == pkt_get_crc(b));
 }
 
@@ -192,7 +192,7 @@ void encode(void) {
         pkt_set_seqnum(pkt1, 142);
         // strlen(data1) = 27
         const char * data1 = "Lorem ipsum dolor sit amet.";
-        pkt_set_payload(pkt1, data1, strlen(data1)); 
+        pkt_set_payload(pkt1, data1, strlen(data1));
 
         pkt_t * pkt1_d = pkt_new();
 
@@ -202,7 +202,7 @@ void encode(void) {
         CU_ASSERT(len1 == 4 + 27 + 1 + 4);
         CU_ASSERT(pkt_decode(buf1, len1, pkt1_d) == PKT_OK);
         CU_ASSERT_PKT_EQUAL(pkt1, pkt1_d, 0);
-        
+
         pkt_del(pkt1);
         pkt_del(pkt1_d);
         free(buf1);
@@ -219,7 +219,7 @@ void encode(void) {
         // strlen(data2) = 50
         const char * data2 = "Lorem ipsum dolor sit amet,consectetur adipiscing elit. Quisque amet.";
         pkt_set_payload(pkt2, data2, strlen(data2));
-        
+
         size_t len2 = strlen(data2) / 2;
         char * buf2 = (char *) malloc(len2*sizeof(char));
         CU_ASSERT(pkt_encode(pkt2, buf2, &len2) == E_NOMEM);
@@ -265,7 +265,7 @@ void compute_crc_for_pkt(void) {
         pkt_set_crc(pkt, crc);
 }
 
-void set_data_for_decode(void) {        
+void set_data_for_decode(void) {
         /*
          * This data stream is correct.
          * We will modify it through test
@@ -300,14 +300,14 @@ void del_data_for_decode(void) {
         pkt_del(pkt);
 }
 
-/* 
+/*
  * Case 1 : data steam is correct.
  */
 void decode_correct_case(void) {
         set_data_for_decode();
         pkt_t * pkt_d = pkt_new();
 
-        CU_ASSERT(pkt_decode(data, 12, pkt_d) == PKT_OK); 
+        CU_ASSERT(pkt_decode(data, 12, pkt_d) == PKT_OK);
         CU_ASSERT_PKT_EQUAL(pkt_d, pkt, 1);
 
         pkt_del(pkt_d);
@@ -326,7 +326,7 @@ void decode_no_header(void) {
         set_data_for_decode();
         pkt_t * pkt_d = pkt_new();
 
-        CU_ASSERT(pkt_decode(data, 7, pkt_d) == E_NOHEADER);
+        CU_ASSERT(pkt_decode(data, 3, pkt_d) == E_NOHEADER);
 
         pkt_del(pkt_d);
         del_data_for_decode();
@@ -335,7 +335,7 @@ void decode_no_header(void) {
 /*
  * Case 3 : data stream
  * has been corrupted !
- */ 
+ */
 void decode_invalid_crc(void) {
         set_data_for_decode();
         data[5] = 'X';
@@ -405,11 +405,11 @@ void decode_invalid_window(void) {
 
         free(pkt_d);
         del_data_for_decode();
-        
+
         */
 }
 
-/* 
+/*
  * Case 6 : the evil network
  * corrupted the seqnum and the
  * CRC in such a way that CRC
@@ -500,7 +500,7 @@ void decode_unconsistent(void) {
          * error like invalid CRC or invalid
          * padding are returned before
          * E_UNCONSISTENT.
-         
+
         set_data_for_decode();
         char * d = (char *) malloc(44 * sizeof(char));
         d[0] = 0b00100010;
@@ -526,14 +526,14 @@ void decode_unconsistent(void) {
         del_data_for_decode();
         pkt_del(pkt_d);
         free(d);
-        
+
         */
 }
 
 /* Test Runner Code goes here */
 int main(void) {
         CU_pSuite basic = NULL;
-        
+
         /* initialize the CUnit test registry */
         if(CUE_SUCCESS != CU_initialize_registry()) {
                 return(CU_get_error());
