@@ -7,5 +7,6 @@
 #define BUF_SIZE 1024
 
 void read_loop(int sfd, char * filename) {
-
+	sfd++;
+	if(filename == NULL) {}
 }

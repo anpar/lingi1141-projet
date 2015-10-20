@@ -93,7 +93,7 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
         if((4 + pkt_get_length(pkt) + padding + 4) != (uint16_t) len)
 		 return(E_UNCONSISTENT);
          
-        if(pkt_get_type(pkt) != PTYPE_DATA && pkt_get_length(pkt) =! 0)
+        if(pkt_get_type(pkt) != PTYPE_DATA && pkt_get_length(pkt) != 0)
 	       	return(E_UNCONSISTENT);
 
         pkt_status_code c6 = pkt_set_payload(pkt, data+4, pkt_get_length(pkt));
