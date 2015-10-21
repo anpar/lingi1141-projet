@@ -27,7 +27,7 @@ tests:  tests.o read_loop.o packet_implem.o
 	gcc $(CFLAGS) -o test tests.o read_loop.o packet_implem.o -lz -lcunit
 
 tests.o: tests/tests.c src/read_loop.h 
-	gcc $(CFLAGS) -c tests/tests.c
+	gcc $(CFLAGS) -o test -c tests/tests.c
 
 clean:
 	rm -rf receiver sender *.o *.c~ *.h~
