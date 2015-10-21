@@ -3,6 +3,7 @@
 #include <CUnit/CUnit.h>
 #include <stdlib.h>
 #include <zlib.h>
+#include <string.h>
 
 /* Test Suite setup and cleanup functions: */
 
