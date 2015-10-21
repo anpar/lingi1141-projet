@@ -33,11 +33,12 @@ pkt_t* pkt_new()
 
 void pkt_del(pkt_t *pkt)
 {
-	if(pkt->payload != NULL)
-	free(pkt->payload);
+	if(pkt != NULL) {
+		if(pkt->payload != NULL)
+			free(pkt->payload);
 
-	if(pkt != NULL)
-	free(pkt);
+		free(pkt);
+	}
 }
 
 pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
@@ -52,7 +53,10 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 	* values of the header and then only check the
 	* return values of the setters used.
 	*/
-	pkt_status_code c1 = pkt_set_type(pkt, data[0] >> 5);
+	pkt_status_code c1 = pkt_set_type(pkt, (uint8_t) data[0] >> 5);
+	/* Le cast en uint8_t permet de corriger un bug qui apparaissait lorsqu'on
+	décodait un paquet de type PTYPE_NACK, la valeur data[0] présente alors un
+	overflow (> 127) et on se retrouvait avec une valeur négative pour data[0] */
 	pkt_status_code c2 = pkt_set_window(pkt, data[0] & 0b00011111);
 	pkt_status_code c3 = pkt_set_seqnum(pkt, data[1]);
 	pkt_status_code c4 = pkt_set_length(pkt, (data[2] << 8) | data[3]);
@@ -190,7 +194,7 @@ const char* pkt_get_payload(const pkt_t* pkt)
 pkt_status_code pkt_set_type(pkt_t *pkt, const ptypes_t type)
 {
 	if(type != PTYPE_DATA && type != PTYPE_ACK && type != PTYPE_NACK)
-	return(E_TYPE);
+		return(E_TYPE);
 
 	pkt->type = type;
 	return(PKT_OK);
@@ -199,7 +203,7 @@ pkt_status_code pkt_set_type(pkt_t *pkt, const ptypes_t type)
 pkt_status_code pkt_set_window(pkt_t *pkt, const uint8_t window)
 {
 	if(window > MAX_WINDOW_SIZE)
-	return(E_WINDOW);
+		return(E_WINDOW);
 
 	pkt->window = window;
 	return(PKT_OK);
@@ -219,7 +223,7 @@ pkt_status_code pkt_set_seqnum(pkt_t *pkt, const uint8_t seqnum)
 pkt_status_code pkt_set_length(pkt_t *pkt, const uint16_t length)
 {
 	if(length > 512)
-	return(E_LENGTH);
+		return(E_LENGTH);
 
 	pkt->length = length;
 	return(PKT_OK);
@@ -236,7 +240,7 @@ pkt_status_code pkt_set_payload(pkt_t *pkt, const char *data,
 	{
 		pkt_status_code c = pkt_set_length(pkt, length);
 		if(c != PKT_OK)
-		return(c);
+			return(c);
 
 		uint16_t padding = (4 - (length % 4)) % 4;
 
@@ -246,11 +250,11 @@ pkt_status_code pkt_set_payload(pkt_t *pkt, const char *data,
 		* to free'd it before reallocating.
 		*/
 		if(pkt->payload != NULL)
-		free(pkt->payload);
+			free(pkt->payload);
 
 		pkt->payload = (char *) malloc((length + padding) * sizeof(char));
 		if(pkt->payload == NULL)
-		return(E_NOMEM);
+			return(E_NOMEM);
 
 		int i;
 		for(i = 0; i < length; i++) {

@@ -72,6 +72,7 @@ void shift_window(win * rwin, int out_fd)
                 }
 
                 pkt_del(rwin->buffer[i]);
+                rwin->buffer[i] = NULL;
                 rwin->free_space++;
             }
         } else {
@@ -97,18 +98,16 @@ bool in_window(win * rwin, uint8_t seqnum)
 	int min = rwin->last_in_seq;
 
 	/*
-	 * La fenêtre ressemble à ça (valeurs
-	 * possibles = *) :
+	 * La fenêtre ressemble à ça :
 	 *      max          min
-	 * ******-------------*****
+	 * ------]------------|-----
 	 */
 	if((rwin->last_in_seq + WIN_SIZE) > 256) {
 		return (seqnum > min) || (seqnum <= max);
 	}
-	/* La fenêtre ressemble à ça (valeurs
-	 * possibles = *) :
+	/* La fenêtre ressemble à ça :
 	 * 		 min      max
-	 * -------*********--------
+	 * -------|--------]--------
 	 */
 	else {
 		return (seqnum > min) && (seqnum <= max);
@@ -117,13 +116,16 @@ bool in_window(win * rwin, uint8_t seqnum)
 
 /*
  * Construit un ack pour un paquet reçu
- * FIX: le CRC doit-il se trouver dans un paquet
- * de type PTYPE_ACK? Pour un PTYPE_NACK c'est explicitement
- * précisé mais quid dans ce cas-ci?
  */
-void build_ack(char ack[8], win * rwin) {
+void build_ack(char ack[4], win * rwin) {
     ack[0] = (PTYPE_ACK << 5) | rwin->free_space;
-	ack[1] = (rwin->last_in_seq + 1) % 256;
+    /* On gère le cas particulier de la connexion ou il faut passer de la valeur
+    initiale -1 à 1 après le premier message */
+    if(rwin->last_in_seq == -1)
+        ack[1] = (rwin->last_in_seq + 2) % 256;
+    else
+        ack[1] = (rwin->last_in_seq + 1) % 256;
+
 	ack[2] = 0;
 	ack[3] = 0;
 }
@@ -134,8 +136,8 @@ void build_ack(char ack[8], win * rwin) {
 void build_nack(pkt_t * pkt, char nack[4], win * rwin) {
     nack[0] = (PTYPE_NACK << 5) | rwin->free_space;
     nack[1] = pkt_get_seqnum(pkt);
-    nack[2] = (pkt_get_length(pkt) >> 8) & 0xFF;
-	nack[3] = pkt_get_length(pkt) & 0xFF;
+    nack[2] = 0;
+	nack[3] = 0;
 }
 
 /*

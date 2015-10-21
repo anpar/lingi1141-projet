@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <zlib.h> /* crc32 */
 #include <string.h>
+#include <fcntl.h> /* open */
+#include <stdbool.h>
 
 #include "../src/read_loop.h"
 
@@ -528,28 +530,27 @@ pkt_t * create_packet(ptypes_t type, uint8_t window, uint8_t seqnum, uint16_t le
 
 /*
     Vérifie le bon fonctionnement de la fonction add_window.
-    1) En ajoutant un paquet de seqnum 4 dans la window fraîchement
-    initialisé, il doit donc se situer en 4ème position.
-    2) En ajoutant ensuite un deuxième paquet de seqnum 1 dans cette
-    même window, et en vérifiant que les deux paquets sont toujours
-    à la bonne position.
-    3) Avec une nouvelle fenêtre dont le dernier paquet en séquence
-    était le numéro 5, on ajoute un paquet de seqnum 6, celui-ci doit
-    donc se trouver en premier dans le buffer.
-    4) Avec une nouvelle fenêtre dont le dernier paquet en séquence
-    était le numéro 253, on ajoute un paquet de seqnum 4, celui-ci doit
-    donc se trouver en 6ème position dans le buffer.
 */
 void test_add_in_window(void) {
-    win * rwin = init_window();
+    win * rwin;
     pkt_t *p1, *p2;
 
+    /*
+        En ajoutant un paquet de seqnum 4 dans la window fraîchement
+        initialisé, il doit donc se situer en 4ème position.
+    */
+    rwin = init_window();
     p1 = create_packet(PTYPE_DATA, 5, 4, 4, "abcd");
     add_in_window(p1, rwin);
     CU_ASSERT_EQUAL(rwin->free_space, WIN_SIZE-1);
     CU_ASSERT_PKT_EQUAL(rwin->buffer[4], p1, 1);
     CU_ASSERT_EQUAL(rwin->last_in_seq, -1);
 
+    /*
+        En ajoutant ensuite un deuxième paquet de seqnum 1 dans cette
+        même window, et en vérifiant que les deux paquets sont toujours
+        à la bonne position.
+    */
     p2 = create_packet(PTYPE_DATA, 5, 1, 4, "efgh");
     add_in_window(p2, rwin);
     CU_ASSERT_EQUAL(rwin->free_space, WIN_SIZE-2);
@@ -557,7 +558,13 @@ void test_add_in_window(void) {
     CU_ASSERT_PKT_EQUAL(rwin->buffer[4], p1, 1);
     CU_ASSERT_EQUAL(rwin->last_in_seq, -1);
 
-    free_window(rwin);
+    free_window(rwin); pkt_del(p1);
+
+    /*
+        Avec une nouvelle fenêtre dont le dernier paquet en séquence
+        était le numéro 5, on ajoute un paquet de seqnum 6, celui-ci doit
+        donc se trouver en premier dans le buffer.
+    */
     rwin = init_window();
     rwin->last_in_seq = 5;
     p1 = create_packet(PTYPE_DATA, 5, 6, 4, "abcd");
@@ -566,7 +573,13 @@ void test_add_in_window(void) {
     CU_ASSERT_PKT_EQUAL(rwin->buffer[0], p1, 1);
     CU_ASSERT_EQUAL(rwin->last_in_seq, 5);
 
-    free_window(rwin);
+    free_window(rwin); pkt_del(p1);
+
+    /*
+        Avec une nouvelle fenêtre dont le dernier paquet en séquence
+        était le numéro 253, on ajoute un paquet de seqnum 4, celui-ci doit
+        donc se trouver en 6ème position dans le buffer.
+    */
     rwin = init_window();
     rwin->last_in_seq = 253;
     p1 = create_packet(PTYPE_DATA, 5, 4, 4, "abcd");
@@ -575,31 +588,205 @@ void test_add_in_window(void) {
     CU_ASSERT_PKT_EQUAL(rwin->buffer[6], p1, 1);
     CU_ASSERT_EQUAL(rwin->last_in_seq, 253);
 
-    free_window(rwin);
-    pkt_del(p1);
-    pkt_del(p2);
+    free_window(rwin); pkt_del(p1); pkt_del(p2);
 }
-
 
 /*
-void CU_ASSERT_WIN_EQUAL(win * win1, win * win2) {
-
-}
+    Fonction permettant, à l'aide d'assert, de vérifier
+    l'égalité entre deux fenêtres.
 */
+void CU_ASSERT_WIN_EQUAL(win * win1, win * win2) {
+    CU_ASSERT_EQUAL(win1->last_in_seq, win2->last_in_seq);
+    CU_ASSERT_EQUAL(win1->free_space, win2->free_space);
+
+    int i;
+    for(i = 0; i < WIN_SIZE; i++) {
+        if(win1->buffer[i] != NULL && win2->buffer[i] != NULL) {
+            CU_ASSERT_PKT_EQUAL(win1->buffer[i], win2->buffer[i], 1);
+        } else {
+            CU_ASSERT_PTR_NULL(win1->buffer[i]);
+            CU_ASSERT_PTR_NULL(win2->buffer[i]);
+        }
+    }
+}
 
 /*
     Vérifie le bon fonctionnement de shift_window pour différents
-    types de fenêtre.
-    1) rwin = ---****--- : il n'y a rien à shifter.
+    types de fenêtre. Les différents cas sont représentés en commentaire
+    sous la forme ----****- ou '-' représente une place vide de la fenêtre
+    et * une place occupée. On indique la fenêtre avant shift_window à gauche
+    de '-->' et celle attendue après shift_window à droite de '-->'.
 */
 void test_shift_window(void) {
-    win *rwin = init_window();
-    pkt_t *p1;
+    win *rwin = init_window();      // Fenêtre avant shift window
+    win *rwin_e = init_window();    // Fenêtre espérée après shift_window
+    pkt_t *p1, *p2, *p3, *p4;
 
+    /* On redirige la sortie de shift_window vers /dev/null pour ne pas polluer stdout */
+    int fd = open("/dev/null", O_WRONLY);
+    if(fd == -1)
+        perror("open() in test_shift_window");
+
+    // ---*--- --> ---*---
     p1 = create_packet(PTYPE_DATA, 5, 3, 4, "abcd");
     add_in_window(p1, rwin);
-    shift_window(rwin, 1);
-    CU_ASSERT_PKT_EQUAL(rwin->buffer[3], p1, 1);
+    add_in_window(p1, rwin_e);
+    shift_window(rwin, fd);
+    CU_ASSERT_WIN_EQUAL(rwin, rwin_e);
+
+    free_window(rwin); free_window(rwin_e);
+    pkt_del(p1);
+
+    // *-*---- --> -*-----
+    rwin = init_window();
+    p1 = create_packet(PTYPE_DATA, 5, 0, 4, "abcd");
+    add_in_window(p1, rwin);
+    p2 = create_packet(PTYPE_DATA, 5, 2, 4, "efgh");
+    add_in_window(p2, rwin);
+
+    rwin_e = init_window();
+    rwin_e->last_in_seq = 0;
+    p3 = create_packet(PTYPE_DATA, 5, 2, 4, "efgh");
+    add_in_window(p3, rwin_e);
+
+    shift_window(rwin, fd);
+    CU_ASSERT_WIN_EQUAL(rwin, rwin_e);
+
+    free_window(rwin); free_window(rwin_e);
+    // p1 est déjà free'd par shift_window
+    pkt_del(p2); pkt_del(p3);
+
+    // **-*--- --> -*------
+    rwin = init_window();
+    p1 = create_packet(PTYPE_DATA, 5, 0, 4, "abcd");
+    add_in_window(p1, rwin);
+    p2 = create_packet(PTYPE_DATA, 5, 1, 4, "efgh");
+    add_in_window(p2, rwin);
+    p3 = create_packet(PTYPE_DATA, 5, 3, 3, "ijk");
+    add_in_window(p3, rwin);
+
+    rwin_e = init_window();
+    rwin_e->last_in_seq = 1;
+    p4 = create_packet(PTYPE_DATA, 5, 3, 3, "ijk");
+    add_in_window(p4, rwin_e);
+
+    shift_window(rwin, fd);
+    CU_ASSERT_WIN_EQUAL(rwin, rwin_e);
+
+    free_window(rwin); free_window(rwin_e);
+    pkt_del(p3); pkt_del(p4);
+
+    // *----*--- --> ----*---- avec last_in_seq = 254
+    rwin = init_window();
+    rwin->last_in_seq = 254;
+    p1 = create_packet(PTYPE_DATA, 5, 255, 4, "abcd");
+    add_in_window(p1, rwin);
+    p2 = create_packet(PTYPE_DATA, 5, 1, 4, "efgh");
+    add_in_window(p2, rwin);
+
+    rwin_e = init_window();
+    rwin_e->last_in_seq = 255;
+    p3 = create_packet(PTYPE_DATA, 5, 1, 4, "efgh");
+    add_in_window(p3, rwin_e);
+
+    shift_window(rwin, fd);
+    CU_ASSERT_WIN_EQUAL(rwin, rwin_e);
+
+    free_window(rwin); free_window(rwin_e);
+    pkt_del(p2); pkt_del(p3);
+}
+
+/*
+    Vérifie le bon fonctionnement de la fonction in_window.
+*/
+void test_in_window(void) {
+    win *rwin = init_window();
+    CU_ASSERT(in_window(rwin, 12));
+    CU_ASSERT(in_window(rwin, WIN_SIZE-1))
+    CU_ASSERT(!in_window(rwin, WIN_SIZE));
+
+    rwin->last_in_seq = 20;
+    CU_ASSERT(in_window(rwin, 32));
+    CU_ASSERT(in_window(rwin, 51));
+    CU_ASSERT(!in_window(rwin, 52));
+    CU_ASSERT(!in_window(rwin, 20));
+    CU_ASSERT(!in_window(rwin, 12));
+
+    rwin->last_in_seq = 253;
+    CU_ASSERT(in_window(rwin, 254));
+    CU_ASSERT(in_window(rwin, 12));
+    CU_ASSERT(in_window(rwin, 28));
+    CU_ASSERT(!in_window(rwin, 29));
+    CU_ASSERT(!in_window(rwin, 250));
+
+    free_window(rwin);
+}
+
+/*
+    Vérifie le bon fonctionnement de la fonction build_ack.
+*/
+void test_build_ack(void) {
+    win * rwin = init_window();
+    pkt_t *p = pkt_new();
+    char ack[4];
+
+    /*
+        On envoie un ack pour le premier paquet reçu (connexion)
+    */
+    build_ack(ack, rwin);
+    CU_ASSERT_EQUAL(pkt_decode(ack, 4, p), PKT_OK);
+    CU_ASSERT_EQUAL(pkt_get_type(p), PTYPE_ACK);
+    CU_ASSERT_EQUAL(pkt_get_window(p), rwin->free_space);
+    CU_ASSERT_EQUAL(pkt_get_seqnum(p), 1);
+    CU_ASSERT_EQUAL(pkt_get_length(p), 0);
+
+    /*
+        On envoie un ack pour un paquet reçu quelconque
+    */
+    rwin->last_in_seq = 10;
+    rwin->free_space = 25;
+    build_ack(ack, rwin);
+    CU_ASSERT_EQUAL(pkt_decode(ack, 4, p), PKT_OK);
+    CU_ASSERT_EQUAL(pkt_get_type(p), PTYPE_ACK);
+    CU_ASSERT_EQUAL(pkt_get_window(p), rwin->free_space);
+    CU_ASSERT_EQUAL(pkt_get_seqnum(p), 11);
+    CU_ASSERT_EQUAL(pkt_get_length(p), 0);
+
+    /*
+        Le dernier numéro de séquence reçu est 255, on vérifie
+        que l'ack correspondant a bien comme seqnum 0.
+    */
+    rwin->last_in_seq = 255;
+    build_ack(ack, rwin);
+    CU_ASSERT_EQUAL(pkt_decode(ack, 4, p), PKT_OK);
+    CU_ASSERT_EQUAL(pkt_get_type(p), PTYPE_ACK);
+    CU_ASSERT_EQUAL(pkt_get_window(p), rwin->free_space);
+    CU_ASSERT_EQUAL(pkt_get_seqnum(p), 0);
+    CU_ASSERT_EQUAL(pkt_get_length(p), 0);
+
+    free_window(rwin);
+    pkt_del(p);
+}
+
+/*
+    Vérifie le bon fonctionnement de la fonction build_nack.
+*/
+void test_build_nack(void) {
+    win * rwin = init_window();
+    pkt_t *p1, *p2;
+    char nack[4];
+
+    p1 = create_packet(PTYPE_DATA, 5, 15, 18, "");
+    build_nack(p1, nack, rwin);
+    p2 = pkt_new();
+    CU_ASSERT_EQUAL(pkt_decode(nack, 4, p2), PKT_OK);
+    CU_ASSERT_EQUAL(pkt_get_type(p2), PTYPE_NACK);
+    CU_ASSERT_EQUAL(pkt_get_window(p2), rwin->free_space);
+    CU_ASSERT_EQUAL(pkt_get_seqnum(p2), 15);
+    CU_ASSERT_EQUAL(pkt_get_length(p2), 0);
+
+    free_window(rwin);
+    pkt_del(p1); pkt_del(p2);
 }
 
 /* Test Runner Code goes here */
@@ -639,7 +826,10 @@ int main(void) {
         (NULL == CU_add_test(basic, "decode unconsistent", decode_unconsistent)) ||
         (NULL == CU_add_test(basic, "init_window", test_init_window)) ||
         (NULL == CU_add_test(basic, "add_in_window", test_add_in_window)) ||
-        (NULL == CU_add_test(basic, "shift_window", test_shift_window))
+        (NULL == CU_add_test(basic, "shift_window", test_shift_window)) ||
+        (NULL == CU_add_test(basic, "in_window", test_in_window)) ||
+        (NULL == CU_add_test(basic, "build_ack", test_build_ack)) ||
+        (NULL == CU_add_test(basic, "build_nack", test_build_nack))
     )
     {
         CU_cleanup_registry();
