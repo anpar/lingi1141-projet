@@ -28,7 +28,8 @@ tests:  tests.o read_loop.o packet_implem.o
 
 tests.o: tests/tests.c src/read_loop.h 
 	gcc $(CFLAGS) -o test -c tests/tests.c
-
+	./test
+	
 clean:
 	rm -rf receiver sender *.o *.c~ *.h~
 
