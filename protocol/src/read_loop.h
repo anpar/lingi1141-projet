@@ -7,6 +7,12 @@
 #define WIN_SIZE 31
 #define MAX_PKT_SIZE 520
 
+struct window {
+	pkt_t * buffer[WIN_SIZE];
+	int last_in_seq;
+	uint8_t free_space;
+};
+
 typedef struct window win;
 
 /* Loop reading a socket and writing on a socket.
@@ -39,6 +45,11 @@ void shift_window(win * rwin, int out_fd);
  * rentre dans la fenre, false sinon.
  */
 bool in_window(win * rwin, uint8_t seqnum);
+
+/*
+ * Ajoute un paquet dans la fenêtre de réception
+ */
+void add_in_window(pkt_t * d_pkt, win * rwin);
 
 /*
  * Construit un ack pour un paquet reçu

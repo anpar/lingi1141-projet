@@ -1,7 +1,8 @@
-#include "packet_interface.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <zlib.h> /* crc32 */
+
+#include "packet_interface.h"
 
 /*
 * Structure reprensenting a packet.
@@ -23,7 +24,7 @@ pkt_t* pkt_new()
 {
 	pkt_t * pkt = (pkt_t *) (malloc(sizeof(pkt_t)));
 	if(pkt == NULL)
-	return(NULL);
+		return(NULL);
 
 	pkt->payload = NULL;
 

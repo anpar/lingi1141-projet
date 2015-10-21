@@ -7,11 +7,16 @@
 
 #include "read_loop.h"
 
-struct window {
-	pkt_t * buffer[31];
-	uint8_t last_in_seq;
-	uint8_t free_space;
-};
+/*
+ * Une vraie opération modulo (au sens mathématique).
+ * L'opérateur % n'étant pas un vrai un modulo (mais plutôt
+ * un calcul de reste, ce qui n'est pas la même chose!)
+ */
+ int mod(int a, int b)
+ {
+    int r = a % b;
+    return r < 0 ? r + b : r;
+ }
 
 /*
  * Initialise la fenêtre de réception.
@@ -22,8 +27,13 @@ win * init_window()
 	if(w == NULL)
 		return NULL;
 
-	w->last_in_seq = 0;
+	w->last_in_seq = -1;
 	w->free_space = WIN_SIZE;
+
+	int i;
+	for(i = 0; i < WIN_SIZE; i++) {
+		w->buffer[i] = NULL;
+	}
 
 	return w;
 }
@@ -44,10 +54,8 @@ void free_window(win * rwin)
  */
 void shift_window(win * rwin, int out_fd)
 {
-    bool hole_in_window = false;
-
     int i;
-    for(i = 0; i < WIN_SIZE && !hole_in_window; i++) {
+    for(i = 0; i < WIN_SIZE; i++) {
         if(rwin->buffer[i] != NULL) {
             // En principe toujours vrai
             if(pkt_get_seqnum(rwin->buffer[i]) == ((rwin->last_in_seq + 1) % 256)) {
@@ -67,9 +75,16 @@ void shift_window(win * rwin, int out_fd)
                 rwin->free_space++;
             }
         } else {
-            hole_in_window = true;
+			break;
         }
     }
+
+	/* Il faut ensuite décaler chaque élément de la fenêtre de i
+	place vers la gauche */
+	int j;
+	for(j = i+1; j < WIN_SIZE && i != 0; j++) {
+		rwin->buffer[j-i] = rwin->buffer[j];
+	}
 }
 
 /*
@@ -142,6 +157,11 @@ bool write_on_socket(int sfd, char * buf, int size) {
     return true;
 }
 
+void add_in_window(pkt_t * d_pkt, win * rwin) {
+	rwin->free_space--;     // Une place de moins dans rwin
+	rwin->buffer[mod(pkt_get_seqnum(d_pkt) - (rwin->last_in_seq + 1), 256)] = d_pkt;
+}
+
 void read_loop(int sfd, char * filename)
 {
 	int err;
@@ -210,13 +230,10 @@ void read_loop(int sfd, char * filename)
                         un ACK */
                         if(read_on_socket != 4) {
                             char ack[4];
-                            rwin->free_space--;     // Une place de moins dans rwin
+							add_in_window(d_pkt, rwin);
                             build_ack(ack, rwin);
                             if(!write_on_socket(sfd, ack, 4))
                                 return;
-
-                            // On place d_pkt dans la fenêtre de réception
-                            rwin->buffer[pkt_get_seqnum(d_pkt) - ((rwin->last_in_seq + 1) % 256)] = d_pkt;
                         }
                         /* Sinon, le paquet a été coupé à cause de congestion
                         dans le réseau, il faut avertir le sender en envoyant
