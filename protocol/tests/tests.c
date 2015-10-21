@@ -5,6 +5,7 @@
 #include <string.h>
 #include <fcntl.h> /* open */
 #include <stdbool.h>
+#include <stdio.h>
 
 #include "../src/read_loop.h"
 
