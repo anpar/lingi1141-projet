@@ -24,11 +24,7 @@ pkt_t* pkt_new()
 {
 	pkt_t * pkt = (pkt_t *) (malloc(sizeof(pkt_t)));
 	if(pkt == NULL)
-<<<<<<< HEAD
-	return(NULL);
-=======
 		return(NULL);
->>>>>>> 2c4e1e73638ecf8ef8feb178804b99da42dd0377
 
 	pkt->payload = NULL;
 
@@ -39,11 +35,7 @@ void pkt_del(pkt_t *pkt)
 {
 	if(pkt != NULL) {
 		if(pkt->payload != NULL)
-<<<<<<< HEAD
-		free(pkt->payload);
-=======
 			free(pkt->payload);
->>>>>>> 2c4e1e73638ecf8ef8feb178804b99da42dd0377
 
 		free(pkt);
 	}
@@ -52,11 +44,7 @@ void pkt_del(pkt_t *pkt)
 pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 {
 	if(len < 4)
-<<<<<<< HEAD
-	return(E_NOHEADER);
-=======
 		return(E_NOHEADER);
->>>>>>> 2c4e1e73638ecf8ef8feb178804b99da42dd0377
 
 	/*
 	* @return says that unless the error is E_NOHEADER,
@@ -80,15 +68,6 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 
 	// Si le paquet est un (n)ack
 	if(len == 4)
-<<<<<<< HEAD
-	return(PKT_OK);
-
-	if(len != 4 && pkt_get_type(pkt) != PTYPE_DATA)
-	return(E_UNCONSISTENT);
-
-	if(len < 8)
-	return(E_UNCONSISTENT);
-=======
 		return(PKT_OK);
 
 	if(len != 4 && pkt_get_type(pkt) != PTYPE_DATA)
@@ -96,7 +75,6 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 
 	if(len < 8)
 		return(E_UNCONSISTENT);
->>>>>>> 2c4e1e73638ecf8ef8feb178804b99da42dd0377
 
 	uint32_t received_crc = (uint8_t) data[len-4];
 	received_crc = (received_crc << 8) + (uint8_t) data[len-3];
@@ -105,11 +83,7 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 	uint32_t computed_crc = crc32(0L, (Bytef *) data, len-4);
 
 	if(received_crc != computed_crc)
-<<<<<<< HEAD
-	return(E_CRC);
-=======
 		return(E_CRC);
->>>>>>> 2c4e1e73638ecf8ef8feb178804b99da42dd0377
 
 	pkt_status_code c5 = pkt_set_crc(pkt, received_crc);
 	if(c5 != PKT_OK) 	{return(c5);}
@@ -121,16 +95,6 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 
 	uint16_t padding = (4 - (pkt_get_length(pkt) % 4)) % 4;
 	if((4 + pkt_get_length(pkt) + padding + 4) != (uint16_t) len)
-<<<<<<< HEAD
-	return(E_UNCONSISTENT);
-
-	if(pkt_get_type(pkt) != PTYPE_DATA && pkt_get_length(pkt) != 0)
-	return(E_UNCONSISTENT);
-
-	pkt_status_code c6 = pkt_set_payload(pkt, data+4, pkt_get_length(pkt));
-	if(c6 != PKT_OK)
-	return(c6);
-=======
 		return(E_UNCONSISTENT);
 
 	if(pkt_get_type(pkt) != PTYPE_DATA && pkt_get_length(pkt) != 0)
@@ -139,7 +103,6 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 	pkt_status_code c6 = pkt_set_payload(pkt, data+4, pkt_get_length(pkt));
 	if(c6 != PKT_OK)
 		return(c6);
->>>>>>> 2c4e1e73638ecf8ef8feb178804b99da42dd0377
 
 	return(PKT_OK);
 }
@@ -172,11 +135,7 @@ pkt_status_code pkt_encode(const pkt_t* pkt, char *buf, size_t *len)
 	* return E_NOMEM.
 	*/
 	if(i != pkt_get_length(pkt) + padding)
-<<<<<<< HEAD
-	return(E_NOMEM);
-=======
 		return(E_NOMEM);
->>>>>>> 2c4e1e73638ecf8ef8feb178804b99da42dd0377
 
 	/*
 	* Compute the CRC and add it at the end
@@ -234,11 +193,7 @@ const char* pkt_get_payload(const pkt_t* pkt)
 pkt_status_code pkt_set_type(pkt_t *pkt, const ptypes_t type)
 {
 	if(type != PTYPE_DATA && type != PTYPE_ACK && type != PTYPE_NACK)
-<<<<<<< HEAD
-	return(E_TYPE);
-=======
 		return(E_TYPE);
->>>>>>> 2c4e1e73638ecf8ef8feb178804b99da42dd0377
 
 	pkt->type = type;
 	return(PKT_OK);
@@ -247,11 +202,7 @@ pkt_status_code pkt_set_type(pkt_t *pkt, const ptypes_t type)
 pkt_status_code pkt_set_window(pkt_t *pkt, const uint8_t window)
 {
 	if(window > MAX_WINDOW_SIZE)
-<<<<<<< HEAD
-	return(E_WINDOW);
-=======
 		return(E_WINDOW);
->>>>>>> 2c4e1e73638ecf8ef8feb178804b99da42dd0377
 
 	pkt->window = window;
 	return(PKT_OK);
@@ -271,11 +222,7 @@ pkt_status_code pkt_set_seqnum(pkt_t *pkt, const uint8_t seqnum)
 pkt_status_code pkt_set_length(pkt_t *pkt, const uint16_t length)
 {
 	if(length > 512)
-<<<<<<< HEAD
-	return(E_LENGTH);
-=======
 		return(E_LENGTH);
->>>>>>> 2c4e1e73638ecf8ef8feb178804b99da42dd0377
 
 	pkt->length = length;
 	return(PKT_OK);
@@ -292,11 +239,7 @@ pkt_status_code pkt_set_payload(pkt_t *pkt, const char *data,
 	{
 		pkt_status_code c = pkt_set_length(pkt, length);
 		if(c != PKT_OK)
-<<<<<<< HEAD
-		return(c);
-=======
 			return(c);
->>>>>>> 2c4e1e73638ecf8ef8feb178804b99da42dd0377
 
 		uint16_t padding = (4 - (length % 4)) % 4;
 
@@ -306,19 +249,11 @@ pkt_status_code pkt_set_payload(pkt_t *pkt, const char *data,
 		* to free'd it before reallocating.
 		*/
 		if(pkt->payload != NULL)
-<<<<<<< HEAD
-		free(pkt->payload);
-
-		pkt->payload = (char *) malloc((length + padding) * sizeof(char));
-		if(pkt->payload == NULL)
-		return(E_NOMEM);
-=======
 			free(pkt->payload);
 
 		pkt->payload = (char *) malloc((length + padding) * sizeof(char));
 		if(pkt->payload == NULL)
 			return(E_NOMEM);
->>>>>>> 2c4e1e73638ecf8ef8feb178804b99da42dd0377
 
 		int i;
 		for(i = 0; i < length; i++) {
