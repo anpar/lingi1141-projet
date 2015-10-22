@@ -73,7 +73,7 @@ void hdl()
     int j = 0;
     while(j < 32)
     {
-        if(timer_gettime(windowTab[j].timerid, &timerspec)!=0)
+        if(timer_gettime(&windowTab[j].timerid, &timerspec)!=0)
         {
             perror("timer_gettime() %d");
             return;
@@ -86,7 +86,7 @@ void hdl()
                 perror("write()");
                 return;
             }
-            if(timer_settime(windowTab[j].timerid,0,&itimerspec,NULL)!=0) // RELANCER TIMER
+            if(timer_settime(&windowTab[j].timerid,0,&itimerspec,NULL)!=0) // RELANCER TIMER
             {
                 perror("timer_settime()");
                 return;
@@ -107,7 +107,7 @@ int seqnum_valid(int seqnum_pkt)
         return -1;
     }
     int correction = 255 - lastack;
-    if(correction < 32 && seqnum_pkt < (32-correction))
+    if(correction < 32 && seqnum_pkt < (31-correction))
     {
         return 0;
     }
@@ -125,14 +125,15 @@ int seqnum_valid(int seqnum_pkt)
 void slideWindowTab(int k)
 {
     int k2 = k+1;
-    if(k<0) // case of [.|...|255|0|...|.]
+    if(k < 0) // case of [.|...|255|0|...|.]
     {
         k = k + 256;
+        k2 = k2 + 256;
     }
     while (k >= 0) // On vide les éléments qui ont été reçus
     {
         windowTab[k].ack = 0;
-        timer_delete(*windowTab[k].timerid);
+        timer_delete(windowTab[k].timerid);
         windowFree ++;
         k--;
     }
@@ -142,10 +143,11 @@ void slideWindowTab(int k)
         windowTab[j] = windowTab[k2+j];
         j++;
     }
-    while(j <= 32) // On libère plusieurs cases au bout du tableau
+    while(j < 32) // On libère plusieurs cases au bout du tableau
     {
         windowTab[j].ack = 0;
-        timer_delete(*windowTab[j].timerid);
+        timer_delete(windowTab[j].timerid);
+        j++;
     }
 }
 
@@ -164,6 +166,7 @@ void read_write_loop(int sfd, char * filename) {
     char buf[BUF_SIZE]; // Permet de lire les données
     int fileDesc; // Permet d'enregistrer si c'est stdin ou le fichier
 
+    printf("1 \n");
     lastack = 0;
     windowFree = 32;
     seqnum_maker = 0;
@@ -182,6 +185,7 @@ void read_write_loop(int sfd, char * filename) {
     itimerspec.it_interval = interval;
     itimerspec.it_value = value;
 
+    printf("2 \n");
 
 
     signal(SIGALRM, hdl); // Lie le signal à la fonction hdl()
@@ -189,20 +193,29 @@ void read_write_loop(int sfd, char * filename) {
     initWindow();
     //    initTimer(value, interval, itimerspec);
 
+    printf("3 \n");
 
+    if(filename == NULL)
+    {
+        fileDesc = STDIN_FILENO;
+    }
+    else
+    {
+        printf("4 \n");
+        fileDesc = open(filename,O_RDONLY);
+        if(fileDesc == -1)
+        {
+            perror("open()");
+            return;
+        }
+        printf("4bis \n");
+    }
 
     while (1) {
-        if(filename == NULL)
-        {
-            fileDesc = STDIN_FILENO;
-        }
-        else
-        {
-            fileDesc = open(filename,O_RDONLY);
-        }
         FD_SET(fileDesc, &readfds);     // We can read on stdin
         FD_SET(sfd, &writefds);             // We can write on the socket
         FD_SET(sfd, &readfds);              // We can read on the socket
+//        printf("5 \n");
 
         retval = select(sfd+1, &readfds, &writefds, NULL, NULL);
 
@@ -316,7 +329,7 @@ void read_write_loop(int sfd, char * filename) {
 
                 pkt_t * pkt_temp = pkt_new();
                 pkt_set_type(pkt_temp, PTYPE_DATA);
-                pkt_set_window(pkt_temp, windowFree);
+                pkt_set_window(pkt_temp, windowFree-1);
                 pkt_set_seqnum(pkt_temp, seqnum_maker);
                 pkt_set_length(pkt_temp, read_on_stdin);
 
@@ -334,7 +347,7 @@ void read_write_loop(int sfd, char * filename) {
                     perror("write()");
                     return;
                 }
-                if(timer_settime(windowTab[i].timerid,0,&itimerspec,NULL)!=0) //LANCER TIMER
+                if(timer_settime(&windowTab[i].timerid,0,&itimerspec,NULL)!=0) //LANCER TIMER
                 {
                     perror("timer_settime()");
                     return;

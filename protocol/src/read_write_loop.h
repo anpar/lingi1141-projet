@@ -23,7 +23,7 @@
 struct window2 {
   char pkt_buf[520];
   int ack;
-  timer_t * timerid;
+  timer_t timerid;
 };
 
 
