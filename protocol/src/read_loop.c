@@ -130,13 +130,14 @@ bool in_window(win * rwin, uint8_t seqnum)
  */
 void build_ack(char ack[4], win * rwin) {
     ack[0] = (PTYPE_ACK << 5) | rwin->free_space;
-    /* On gère le cas particulier de la connexion ou il faut passer de la valeur
-    initiale -1 à 1 après le premier message */
-    if(rwin->last_in_seq == -1)
-        ack[1] = (rwin->last_in_seq + 2) % 256;
-    else
-        ack[1] = (rwin->last_in_seq + 1) % 256;
 
+    // On compte le nombre d'ack en séquence pour trouver le dernier en séquence
+    int i = 0;
+    while(rwin->buffer[i] != NULL) {
+        i++;
+    }
+
+    ack[1] = (rwin->last_in_seq + i + 1) % 256;
 	ack[2] = 0;
 	ack[3] = 0;
 }
