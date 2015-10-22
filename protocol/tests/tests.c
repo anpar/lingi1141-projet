@@ -788,12 +788,15 @@ void test_build_ack(void) {
     /*
         On envoie un ack pour le premier paquet reçu (connexion)
     */
+    pkt_t *p1 = create_packet(PTYPE_DATA, 5, 0, 4, "abcd");
+    add_in_window(p1, rwin);
     build_ack(ack, rwin);
     CU_ASSERT_EQUAL(pkt_decode(ack, 4, p), PKT_OK);
     CU_ASSERT_EQUAL(pkt_get_type(p), PTYPE_ACK);
     CU_ASSERT_EQUAL(pkt_get_window(p), rwin->free_space);
     CU_ASSERT_EQUAL(pkt_get_seqnum(p), 1);
     CU_ASSERT_EQUAL(pkt_get_length(p), 0);
+    pkt_del(p1); free_window(rwin); rwin = init_window();
 
     /*
         On envoie un ack pour un paquet reçu quelconque
@@ -980,16 +983,27 @@ void test_readloop(void) {
     // Comparaison de l'ack reçu et de l'ack attendu
     p_r = pkt_new();
     CU_ASSERT_EQUAL(pkt_decode(buf_to_receive, num_read, p_r), PKT_OK);
-    p_e = create_packet(PTYPE_ACK, 29, 1, 0, NULL);
+    p_e = create_packet(PTYPE_ACK, 29, 3, 0, NULL);
     CU_ASSERT_PKT_HEADER_EQUAL(p_r, p_e);
 
     pkt_del(p_r); pkt_del(p_e);
-
 
     // Envoi du paquet indiquant la fin du transfert
     p_s = create_packet(PTYPE_DATA, 5, 3, 0, NULL);
     CU_ASSERT_EQUAL(pkt_encode(p_s, buf_to_send, &len_to_send), PKT_OK);
     write_on_socket(sfd_s, buf_to_send, len_to_send);
+
+    // Lecture de l'ack reçu en échange du paquet final
+    num_read = read(sfd_s, buf_to_receive, len_to_receive);
+    if(num_read == -1) {
+        fprintf(stderr, "read() failed.\n");
+    }
+
+    // Comparaison de l'ack reçu et de l'ack attendu
+    p_r = pkt_new();
+    CU_ASSERT_EQUAL(pkt_decode(buf_to_receive, num_read, p_r), PKT_OK);
+    p_e = create_packet(PTYPE_ACK, 30, 4, 0, NULL);
+    CU_ASSERT_PKT_HEADER_EQUAL(p_r, p_e);
 
     err = pthread_join(t, NULL);
     if(err != 0) {
