@@ -6,8 +6,12 @@
 #include <fcntl.h> /* open */
 #include <stdbool.h>
 #include <stdio.h>
+#include <pthread.h>
 
 #include "../src/read_loop.h"
+#include "../src/wait_for_sender.h"
+#include "../src/real_address.h"
+#include "../src/create_socket.h"
 
 /* Test Suite setup and cleanup functions: */
 
@@ -20,6 +24,11 @@ int clean_suite(void) {
 }
 
 /* Test case functions */
+
+
+/*--------------------------------------------------------------------------+
+| Tests pour les fonctions de packet_implem (encode, decode, etc)           |
++---------------------------------------------------------------------------*/
 
 /*
 * FIRST PART : Getters and setters
@@ -155,13 +164,17 @@ void test_pkt_payload(void) {
 /*
 * SECOND PART : Encode and decode
 */
-
 void CU_ASSERT_PKT_EQUAL(pkt_t * a, pkt_t * b, int check_crc) {
     CU_ASSERT(pkt_get_type(a) == pkt_get_type(b));
     CU_ASSERT(pkt_get_window(a) == pkt_get_window(b));
     CU_ASSERT(pkt_get_seqnum(a) == pkt_get_seqnum(b));
     CU_ASSERT(pkt_get_length(a) == pkt_get_length(b));
-    CU_ASSERT_STRING_EQUAL(pkt_get_payload(a), pkt_get_payload(b));
+    if(pkt_get_payload(a) != NULL && pkt_get_payload(b) != NULL) {
+        CU_ASSERT_STRING_EQUAL(pkt_get_payload(a), pkt_get_payload(b));
+    } else {
+        CU_ASSERT_PTR_NULL(pkt_get_payload(a));
+        CU_ASSERT_PTR_NULL(pkt_get_payload(b));
+    }
 
     if(check_crc == 1)
         CU_ASSERT(pkt_get_crc(a) == pkt_get_crc(b));
@@ -530,7 +543,7 @@ pkt_t * create_packet(ptypes_t type, uint8_t window, uint8_t seqnum, uint16_t le
 }
 
 /*
-    Vérifie le bon fonctionnement de la fonction add_window.
+    Vérifie le bon fonctionnement de la fonction add_in_window.
 */
 void test_add_in_window(void) {
     win * rwin;
@@ -632,7 +645,7 @@ void test_shift_window(void) {
     p1 = create_packet(PTYPE_DATA, 5, 3, 4, "abcd");
     add_in_window(p1, rwin);
     add_in_window(p1, rwin_e);
-    shift_window(rwin, fd);
+    CU_ASSERT_FALSE(shift_window(rwin, fd));
     CU_ASSERT_WIN_EQUAL(rwin, rwin_e);
 
     free_window(rwin); free_window(rwin_e);
@@ -650,7 +663,7 @@ void test_shift_window(void) {
     p3 = create_packet(PTYPE_DATA, 5, 2, 4, "efgh");
     add_in_window(p3, rwin_e);
 
-    shift_window(rwin, fd);
+    CU_ASSERT_FALSE(shift_window(rwin, fd));
     CU_ASSERT_WIN_EQUAL(rwin, rwin_e);
 
     free_window(rwin); free_window(rwin_e);
@@ -671,7 +684,7 @@ void test_shift_window(void) {
     p4 = create_packet(PTYPE_DATA, 5, 3, 3, "ijk");
     add_in_window(p4, rwin_e);
 
-    shift_window(rwin, fd);
+    CU_ASSERT_FALSE(shift_window(rwin, fd));
     CU_ASSERT_WIN_EQUAL(rwin, rwin_e);
 
     free_window(rwin); free_window(rwin_e);
@@ -690,11 +703,52 @@ void test_shift_window(void) {
     p3 = create_packet(PTYPE_DATA, 5, 1, 4, "efgh");
     add_in_window(p3, rwin_e);
 
-    shift_window(rwin, fd);
+    CU_ASSERT_FALSE(shift_window(rwin, fd));
     CU_ASSERT_WIN_EQUAL(rwin, rwin_e);
 
     free_window(rwin); free_window(rwin_e);
     pkt_del(p2); pkt_del(p3);
+
+    /*
+        Un paquet de fin de transfert est présent
+        dans la fenêtre mais on doit encore attendre
+        des paquets manquants
+    */
+    rwin = init_window();
+    p1 = create_packet(PTYPE_DATA, 5, 0, 4, "abcd");
+    add_in_window(p1, rwin);
+    p2 = create_packet(PTYPE_DATA, 5, 2, 0, NULL);
+    add_in_window(p2, rwin);
+
+    rwin_e = init_window();
+    rwin_e->last_in_seq = 0;
+    p3 = create_packet(PTYPE_DATA, 5, 2, 0, NULL);
+    add_in_window(p3, rwin_e);
+
+    CU_ASSERT_FALSE(shift_window(rwin, fd));
+    CU_ASSERT_WIN_EQUAL(rwin, rwin_e);
+
+    free_window(rwin); free_window(rwin_e);
+    pkt_del(p2); pkt_del(p3);
+
+    /*
+        Un paquet de fin de transfert est présent
+        dans la fenêtre et on ne doit plus attendre
+        de paquets manquants
+    */
+    rwin = init_window();
+    p1 = create_packet(PTYPE_DATA, 5, 0, 4, "abcd");
+    add_in_window(p1, rwin);
+    p2 = create_packet(PTYPE_DATA, 5, 1, 0, NULL);
+    add_in_window(p2, rwin);
+
+    rwin_e = init_window();
+    rwin_e->last_in_seq = 1;
+
+    CU_ASSERT_TRUE(shift_window(rwin, fd));
+    CU_ASSERT_WIN_EQUAL(rwin, rwin_e);
+
+    free_window(rwin); free_window(rwin_e);
 }
 
 /*
@@ -790,6 +844,160 @@ void test_build_nack(void) {
     pkt_del(p1); pkt_del(p2);
 }
 
+/* Utiliser pour tester read_loop juste en-dessous */
+bool receiver_ready = false;
+
+int get_receiver_socket() {
+    struct sockaddr_in6 addr;
+    const char *err = real_address("::", &addr);
+    if (err) {
+        fprintf(stderr, "Could not resolve hostname %s: %s\n", "::", err);
+        return -1;
+    }
+
+    int sfd = create_socket(&addr, 1200, NULL, -1); /* Bound */
+    receiver_ready = true;
+    if (sfd > 0 && wait_for_sender(sfd) < 0) { /* Connected */
+        fprintf(stderr,"Could not connect the socket after the first packet.\n");
+        close(sfd);
+        return -1;
+    }
+
+    return sfd;
+}
+
+int get_sender_socket() {
+    struct sockaddr_in6 addr;
+    const char *err = real_address("::", &addr);
+    if (err) {
+        fprintf(stderr, "Could not resolve hostname %s: %s\n", "::", err);
+        return -1;
+    }
+
+    int sfd = create_socket(NULL, -1, &addr, 1200); /* Connected */
+    return(sfd);
+}
+
+void * thread_receiver(void * filename) {
+    int sfd = get_receiver_socket();
+    if(sfd == -1) {
+        fprintf(stderr, "Failed to get_receiver_socket() failed.\n");
+        pthread_exit(NULL);
+    }
+
+    char *file = (char *) filename;
+    read_loop(sfd, file);
+    pthread_exit(NULL);
+}
+
+/*
+    Vérifie le bon fonctionnement de la foncion read_loop (qui
+    constitue le coeur du receiver). Il s'agit en gros de vérifier
+    si les ack/nack corrects sont écrit sur le socket lorsque des
+    paquets sont envoyés sur ce même socket.
+*/
+void test_readloop(void) {
+    // On crée un socket pour le sender
+    int sfd_s = get_sender_socket();
+    if(sfd_s == -1) {
+        fprintf(stderr, "Failed to get_sender_socket() failed.\n");
+        return;
+    }
+
+    // On lance le receiver dans un thread
+    pthread_t t;
+    int err = pthread_create(&t, NULL, thread_receiver, NULL);
+    if(err != 0) {
+        fprintf(stderr, "pthread_create() failed.\n");
+        return;
+    }
+
+    // On doit attendre que le receiver soit prêt pour envoyer le premier paquet
+    while(!receiver_ready) {}
+    char buf_to_send[12]; size_t len_to_send = 12;
+    char buf_to_receive[4]; size_t len_to_receive = 4;
+
+    // Envoi du premier paquet
+    pkt_t *p_s = create_packet(PTYPE_DATA, 5, 0, 4, "abcd");
+    CU_ASSERT_EQUAL(pkt_encode(p_s, buf_to_send, &len_to_send), PKT_OK);
+    write_on_socket(sfd_s, buf_to_send, len_to_send);
+
+    pkt_del(p_s);
+
+    /*
+        La connexion a été correctement établie à partir d'ici, vérifions qu'un
+        ack de seqnum 1 a bien été renvoyé sur le socket du sender.
+    */
+
+    // Lecture de l'ack reçu en échange du premier paquet
+    ssize_t num_read = read(sfd_s, buf_to_receive, len_to_receive);
+    if(num_read == -1) {
+        fprintf(stderr, "read() failed.\n");
+    }
+
+    // Comparaison de l'ack reçu et de l'ack attendu
+    pkt_t *p_r = pkt_new();
+    CU_ASSERT_EQUAL(pkt_decode(buf_to_receive, num_read, p_r), PKT_OK);
+    pkt_t *p_e = create_packet(PTYPE_ACK, 30, 1, 0, NULL);
+    CU_ASSERT_PKT_HEADER_EQUAL(p_r, p_e);
+
+    pkt_del(p_r); pkt_del(p_e);
+
+    // Envoi d'un deuxième paquet pas en séquence
+    p_s = create_packet(PTYPE_DATA, 5, 2, 4, "ijkl");
+    CU_ASSERT_EQUAL(pkt_encode(p_s, buf_to_send, &len_to_send), PKT_OK);
+    write_on_socket(sfd_s, buf_to_send, len_to_send);
+
+    pkt_del(p_s);
+
+    // Lecture de l'ack reçu en échange du deuxième paquet
+    num_read = read(sfd_s, buf_to_receive, len_to_receive);
+    if(num_read == -1) {
+        fprintf(stderr, "read() failed.\n");
+    }
+
+    // Comparaison de l'ack reçu et de l'ack attendu
+    p_r = pkt_new();
+    CU_ASSERT_EQUAL(pkt_decode(buf_to_receive, num_read, p_r), PKT_OK);
+    p_e = create_packet(PTYPE_ACK, 30, 1, 0, NULL);
+    CU_ASSERT_PKT_HEADER_EQUAL(p_r, p_e);
+
+    pkt_del(p_r); pkt_del(p_e);
+
+    // Envoi d'un troisème paquet qui vient combler le trou dans la window
+    p_s = create_packet(PTYPE_DATA, 5, 1, 4, "efgh");
+    CU_ASSERT_EQUAL(pkt_encode(p_s, buf_to_send, &len_to_send), PKT_OK);
+    write_on_socket(sfd_s, buf_to_send, len_to_send);
+
+    pkt_del(p_s);
+
+    // Lecture de l'ack reçu en échange du troisème paquet
+    num_read = read(sfd_s, buf_to_receive, len_to_receive);
+    if(num_read == -1) {
+        fprintf(stderr, "read() failed.\n");
+    }
+
+    // Comparaison de l'ack reçu et de l'ack attendu
+    p_r = pkt_new();
+    CU_ASSERT_EQUAL(pkt_decode(buf_to_receive, num_read, p_r), PKT_OK);
+    p_e = create_packet(PTYPE_ACK, 29, 1, 0, NULL);
+    CU_ASSERT_PKT_HEADER_EQUAL(p_r, p_e);
+
+    pkt_del(p_r); pkt_del(p_e);
+
+
+    // Envoi du paquet indiquant la fin du transfert
+    p_s = create_packet(PTYPE_DATA, 5, 3, 0, NULL);
+    CU_ASSERT_EQUAL(pkt_encode(p_s, buf_to_send, &len_to_send), PKT_OK);
+    write_on_socket(sfd_s, buf_to_send, len_to_send);
+
+    err = pthread_join(t, NULL);
+    if(err != 0) {
+        fprintf(stderr, "pthread_join() failed.\n");
+        return;
+    }
+}
+
 /* Test Runner Code goes here */
 int main(void) {
     CU_pSuite basic = NULL;
@@ -830,7 +1038,8 @@ int main(void) {
         (NULL == CU_add_test(basic, "shift_window", test_shift_window)) ||
         (NULL == CU_add_test(basic, "in_window", test_in_window)) ||
         (NULL == CU_add_test(basic, "build_ack", test_build_ack)) ||
-        (NULL == CU_add_test(basic, "build_nack", test_build_nack))
+        (NULL == CU_add_test(basic, "build_nack", test_build_nack)) ||
+        (NULL == CU_add_test(basic, "read_loop", test_readloop))
     )
     {
         CU_cleanup_registry();

@@ -50,9 +50,10 @@ void free_window(win * rwin)
 
 /*
  * Décale la fenêtre et affiche sur out_fd les élements
- * en séquences dans la fenêtre (s'il y en a).
+ * en séquences dans la fenêtre (s'il y en a). Retourne
+ * si le transfert est terminé, false dans le cas contraire.
  */
-void shift_window(win * rwin, int out_fd)
+bool shift_window(win * rwin, int out_fd)
 {
     int i;
     for(i = 0; i < WIN_SIZE; i++) {
@@ -74,6 +75,14 @@ void shift_window(win * rwin, int out_fd)
                 pkt_del(rwin->buffer[i]);
                 rwin->buffer[i] = NULL;
                 rwin->free_space++;
+
+                /*
+                    Si on arrive ici, c'est que la longueur du paquet reçu vaut 0,
+                    on est donc à la fin du transfert.
+                */
+                if(written_on_out == 0) {
+                    return true;
+                }
             }
         } else {
 			break;
@@ -86,6 +95,8 @@ void shift_window(win * rwin, int out_fd)
 	for(j = i+1; j < WIN_SIZE && i != 0; j++) {
 		rwin->buffer[j-i] = rwin->buffer[j];
 	}
+
+    return false;
 }
 
 /*
@@ -210,6 +221,7 @@ void read_loop(int sfd, char * filename)
 			ou nack correspondant) sur le socket */
 			if(FD_ISSET(sfd, &readfds) && FD_ISSET(sfd, &writefds))
 			{
+                fprintf(stderr, "There is something to read on the socket.\n");
 				/* On lit les données sur le socket */
 				ssize_t read_on_socket = read(sfd, (void *) buf, MAX_PKT_SIZE);
 				if (read_on_socket == -1) {
@@ -224,13 +236,16 @@ void read_loop(int sfd, char * filename)
                    rentre dans le fenêtre de réception, on le traite */
                 if(c == PKT_OK && in_window(rwin, pkt_get_seqnum(d_pkt)))
                 {
+                    fprintf(stderr, "And this thing is valid and can go in the reception window.\n");
                     /* Si le packet lu est de type PTYPE_DATA... */
                     if(pkt_get_type(d_pkt) == PTYPE_DATA)
                     {
+                        fprintf(stderr, "This is a PTYPE_DATA packet.\n");
                         /* ... et qu'il contient plus de 4 bytes. Alors, on
                         le place dans la fenêtre de réception et on envoie
                         un ACK */
                         if(read_on_socket != 4) {
+                            fprintf(stderr, "No network overload indicated.\n");
                             char ack[4];
 							add_in_window(d_pkt, rwin);
                             build_ack(ack, rwin);
@@ -241,21 +256,26 @@ void read_loop(int sfd, char * filename)
                         dans le réseau, il faut avertir le sender en envoyant
                         un NACK */
                         else {
+                            fprintf(stderr, "Network overload indicated!\n");
                             char nack[4];
                             build_nack(d_pkt, nack, rwin);
-                            if(write_on_socket(sfd, nack, 4))
+                            if(!write_on_socket(sfd, nack, 4))
                                 return;
                         }
                     }
-				}
-
-				/* Sinon on ne fait rien, on l'ignore */
-			}
+				} else {
+				    /* Sinon on ne fait rien, on l'ignore */
+                    fprintf(stderr, "This thing isn't valid or can't go in the reception window .\n");
+                }
+            }
 
 			/* On peut écrire sur out_fd */
 			if(FD_ISSET(out_fd, &writefds))
 			{
-				shift_window(rwin, out_fd);
+				if(shift_window(rwin, out_fd)) {
+                    fprintf(stderr, "Fin du transfert.\n");
+                    break;
+                }
 			}
 		}
 	}

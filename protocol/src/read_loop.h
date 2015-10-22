@@ -36,9 +36,10 @@ void free_window(win * rwin);
 
 /*
  * Décale la fenêtre et affiche sur out_fd les élements
- * en séquences dans la fenêtre (s'il y en a).
+ * en séquences dans la fenêtre (s'il y en a). Returne true
+ * si le transfert est terminé, false dans le cas contraire.
  */
-void shift_window(win * rwin, int out_fd);
+bool shift_window(win * rwin, int out_fd);
 
 /*
  * Retourne true si le numéro de séquence

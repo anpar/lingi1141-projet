@@ -66,10 +66,7 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 	if(c3 != PKT_OK) {return(c3);}
 	if(c4 != PKT_OK) {return(c4);}
 
-	/*
-	* Le paquet a été coupé par un routeur à cause de la
-	* congestion (mais il est quand même valide).
-	*/
+	// Si le paquet est un (n)ack
 	if(len == 4)
 		return(PKT_OK);
 
@@ -91,6 +88,8 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 	pkt_status_code c5 = pkt_set_crc(pkt, received_crc);
 	if(c5 != PKT_OK) 	{return(c5);}
 
+	// Ce cas correspond à paquet indiquant une fin de transfert
+	if(len == 8 && pkt_get_length(pkt) == 0) 	{return(PKT_OK);}
 	if(len == 8) 		{return(E_NOPAYLOAD);}
 	if(len % 4 != 0) 	{return(E_PADDING);}
 

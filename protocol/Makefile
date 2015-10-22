@@ -23,11 +23,11 @@ create_socket.o: src/create_socket.c src/create_socket.h
 packet_implem.o: src/packet_implem.c src/packet_interface.h
 	gcc $(CFLAGS) -c src/packet_implem.c -lz 
 
-tests:  tests.o read_loop.o packet_implem.o
-	gcc $(CFLAGS) -o test tests.o read_loop.o packet_implem.o -lz -lcunit
+tests:  tests.o read_loop.o packet_implem.o real_address.o create_socket.o wait_for_sender.o
+	gcc $(CFLAGS) -o test tests.o read_loop.o packet_implem.o real_address.o create_socket.o wait_for_sender.o -lz -lcunit -pthread
 	./test
 
-tests.o: tests/tests.c src/read_loop.h 
+tests.o: tests/tests.c src/read_loop.h
 	gcc $(CFLAGS) -c tests/tests.c
 	
 clean:
