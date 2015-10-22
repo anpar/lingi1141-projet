@@ -210,11 +210,6 @@ pkt_status_code pkt_set_window(pkt_t *pkt, const uint8_t window)
 
 pkt_status_code pkt_set_seqnum(pkt_t *pkt, const uint8_t seqnum)
 {
-	/*
-	* seqnum will never be outside of [0,255] thanks
-	* to its type (uint8_t), so no verification needed.
-	* FIX :
-	*/
 	pkt->seqnum = seqnum;
 	return(PKT_OK);
 }
