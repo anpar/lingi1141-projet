@@ -6,7 +6,8 @@
 #include <stdio.h>      /* perror, fprintf */
 #include <fcntl.h>      /*open*/
 #include <stdlib.h>
-#include <zlib.h>
+#include <signal.h>
+#include <time.h>
 
 #define BUF_SIZE 512 // nombre de bytes lus sur stdin ou dans le fichier
 #define WINDOW_SIZE 32 // taille de la fenêtre de l'émetteur
@@ -16,6 +17,14 @@ struct window windowTab[WINDOW_SIZE]; // Fenêtre de l'émetteur
 int lastack = 0; // Entier enregistrant la valeur du dernier ACK reçu
 int window = 32; // Entier enregistrant le nombre de places libres dans la fenêtre
 int seqnum = 0; // Numéros de séquence des paquets
+int socket;
+
+
+// On enregistre les valeurs nécessaires pour les timers
+struct timespec value;
+struct timespec interval;
+struct itimerspec itimerspec;
+
 
 // Permet de mettre toutes les places disponibles dans le buffer
 void initWindow()
@@ -26,6 +35,15 @@ void initWindow()
     windowTab[j].ack = 0;
     j++;
   }
+  value.tv_sec = 3;
+  value.tv_nsec = 0;
+
+  interval.tv_sec = 0;
+  interval.tv_nsec = 0;
+
+  itimerspec.it_interval = interval;
+  itimerspec.it_value = value;
+
 }
 
 
@@ -38,24 +56,29 @@ int write_on_socket(ssize_t read_on_stdin, char * buf, int sfd)
 //Permet de renvoyer un élément lorsque son timer est tombé à zéro
 void hdl(int sig)
 {
-  struct itimerspec * timerspec;
+  struct itimerspec timerspec;
   int j = 0;
   while(j < 32)
   {
-    if(timer_gettime(windowTab[j].timerid, timerspec)!=0)
+    if(timer_gettime(windowTab[j].timerid, &timerspec)!=0)
     {
       perror("timer_gettime()");
       return;
     }
-    if(timerspec->it_value==0)
+    if(timerspec.it_value.tv_sec==0)
     {
       /* On écrit sur le socket */
-      ssize_t ret = write (sfd, windowTab[i].pkt_buf, 520);
+      ssize_t ret = write (socket, windowTab[j].pkt_buf, 520);
       if (ret == -1) {
         perror("write()");
         return;
       }
-//      RELANCER TIMER
+      if(timer_settime(windowTab[j].timerid,0,&itimerspec,NULL)!=0) // RELANCER TIMER
+      {
+        perror("timer_settime()");
+        return;
+      }
+      return;
     }
     j++;
   }
@@ -71,10 +94,12 @@ void hdl(int sig)
 void read_write_loop(int sfd, char * filename) {
   /* Declare variables */
   //struct timeval timeout;
+  socket = sfd;
   int retval;
   fd_set readfds, writefds;
   char buf[BUF_SIZE]; // Permet de lire les données
   int fileDesc; // Permet d'enregistrer si c'est stdin ou le fichier
+
 
   signal(SIGALRM, hdl); // Lie le signal à la fonction hdl()
 
@@ -149,7 +174,7 @@ void read_write_loop(int sfd, char * filename) {
             int j = 0;
             while(j < (32-k)) // On slide la fenêtre en deux boucles while
             {
-              windowTab[j] = windowTab[k+j]
+              windowTab[j] = windowTab[k+j];
               j++;
             }
             while(j < 32) // On libère plusieurs cases au bout du tableau
@@ -171,7 +196,11 @@ void read_write_loop(int sfd, char * filename) {
             perror("write()");
             return;
           }
-  //      RELANCER TIMER
+          if(timer_settime(windowTab[i].timerid,0,&itimerspec,NULL)!=0) // RELANCER TIMER
+          {
+            perror("timer_settime()");
+            return;
+          }
         }
         else
         {
@@ -237,7 +266,11 @@ void read_write_loop(int sfd, char * filename) {
           }
           written_on_socket += ret;
         }
-//      LANCER TIMER
+        if(timer_settime(windowTab[i].timerid,0,&itimerspec,NULL)!=0) //LANCER TIMER
+        {
+          perror("timer_settime()");
+          return;
+        }
         pkt_del(pkt_temp);
         seqnum ++;
       }
