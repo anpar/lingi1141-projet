@@ -1,5 +1,5 @@
 #include "read_write_loop.h"
-#include "packet_implem.c"
+#include "packet_interface.h"
 
 #include <sys/select.h> /* select */
 #include <unistd.h>     /* STDIN_FILENO, STDOUT_FILENO */
