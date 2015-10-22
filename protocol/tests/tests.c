@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <pthread.h>
 
+#include "../src/read_write_loop.h"
 #include "../src/read_loop.h"
 #include "../src/wait_for_sender.h"
 #include "../src/real_address.h"
@@ -177,7 +178,7 @@ void CU_ASSERT_PKT_EQUAL(pkt_t * a, pkt_t * b, int check_crc) {
     }
 
     if(check_crc == 1)
-        CU_ASSERT(pkt_get_crc(a) == pkt_get_crc(b));
+    CU_ASSERT(pkt_get_crc(a) == pkt_get_crc(b));
 }
 
 void CU_ASSERT_PKT_HEADER_EQUAL(pkt_t * a, pkt_t * b) {
@@ -500,8 +501,8 @@ void decode_unconsistent(void) {
 +---------------------------------------------------------------------------*/
 
 /*
-    Vérifie que l'initialisation de la fenêtre de réception
-    se déroule comme prévu.
+Vérifie que l'initialisation de la fenêtre de réception
+se déroule comme prévu.
 */
 void test_init_window(void) {
     win * rwin = init_window();
@@ -516,8 +517,8 @@ void test_init_window(void) {
 }
 
 /*
- * Permet de créer simplement des paquets pour les futurs tests.
- */
+* Permet de créer simplement des paquets pour les futurs tests.
+*/
 pkt_t * create_packet(ptypes_t type, uint8_t window, uint8_t seqnum, uint16_t length, char * payload) {
     uint16_t padding = (4 - (length % 4)) % 4;
     size_t len = 8 + length + padding;
@@ -543,15 +544,15 @@ pkt_t * create_packet(ptypes_t type, uint8_t window, uint8_t seqnum, uint16_t le
 }
 
 /*
-    Vérifie le bon fonctionnement de la fonction add_in_window.
+Vérifie le bon fonctionnement de la fonction add_in_window.
 */
 void test_add_in_window(void) {
     win * rwin;
     pkt_t *p1, *p2;
 
     /*
-        En ajoutant un paquet de seqnum 4 dans la window fraîchement
-        initialisé, il doit donc se situer en 4ème position.
+    En ajoutant un paquet de seqnum 4 dans la window fraîchement
+    initialisé, il doit donc se situer en 4ème position.
     */
     rwin = init_window();
     p1 = create_packet(PTYPE_DATA, 5, 4, 4, "abcd");
@@ -561,9 +562,9 @@ void test_add_in_window(void) {
     CU_ASSERT_EQUAL(rwin->last_in_seq, -1);
 
     /*
-        En ajoutant ensuite un deuxième paquet de seqnum 1 dans cette
-        même window, et en vérifiant que les deux paquets sont toujours
-        à la bonne position.
+    En ajoutant ensuite un deuxième paquet de seqnum 1 dans cette
+    même window, et en vérifiant que les deux paquets sont toujours
+    à la bonne position.
     */
     p2 = create_packet(PTYPE_DATA, 5, 1, 4, "efgh");
     add_in_window(p2, rwin);
@@ -575,9 +576,9 @@ void test_add_in_window(void) {
     free_window(rwin); pkt_del(p1);
 
     /*
-        Avec une nouvelle fenêtre dont le dernier paquet en séquence
-        était le numéro 5, on ajoute un paquet de seqnum 6, celui-ci doit
-        donc se trouver en premier dans le buffer.
+    Avec une nouvelle fenêtre dont le dernier paquet en séquence
+    était le numéro 5, on ajoute un paquet de seqnum 6, celui-ci doit
+    donc se trouver en premier dans le buffer.
     */
     rwin = init_window();
     rwin->last_in_seq = 5;
@@ -590,9 +591,9 @@ void test_add_in_window(void) {
     free_window(rwin); pkt_del(p1);
 
     /*
-        Avec une nouvelle fenêtre dont le dernier paquet en séquence
-        était le numéro 253, on ajoute un paquet de seqnum 4, celui-ci doit
-        donc se trouver en 6ème position dans le buffer.
+    Avec une nouvelle fenêtre dont le dernier paquet en séquence
+    était le numéro 253, on ajoute un paquet de seqnum 4, celui-ci doit
+    donc se trouver en 6ème position dans le buffer.
     */
     rwin = init_window();
     rwin->last_in_seq = 253;
@@ -606,8 +607,8 @@ void test_add_in_window(void) {
 }
 
 /*
-    Fonction permettant, à l'aide d'assert, de vérifier
-    l'égalité entre deux fenêtres.
+Fonction permettant, à l'aide d'assert, de vérifier
+l'égalité entre deux fenêtres.
 */
 void CU_ASSERT_WIN_EQUAL(win * win1, win * win2) {
     CU_ASSERT_EQUAL(win1->last_in_seq, win2->last_in_seq);
@@ -625,11 +626,11 @@ void CU_ASSERT_WIN_EQUAL(win * win1, win * win2) {
 }
 
 /*
-    Vérifie le bon fonctionnement de shift_window pour différents
-    types de fenêtre. Les différents cas sont représentés en commentaire
-    sous la forme ----****- ou '-' représente une place vide de la fenêtre
-    et * une place occupée. On indique la fenêtre avant shift_window à gauche
-    de '-->' et celle attendue après shift_window à droite de '-->'.
+Vérifie le bon fonctionnement de shift_window pour différents
+types de fenêtre. Les différents cas sont représentés en commentaire
+sous la forme ----****- ou '-' représente une place vide de la fenêtre
+et * une place occupée. On indique la fenêtre avant shift_window à gauche
+de '-->' et celle attendue après shift_window à droite de '-->'.
 */
 void test_shift_window(void) {
     win *rwin = init_window();      // Fenêtre avant shift window
@@ -639,7 +640,7 @@ void test_shift_window(void) {
     /* On redirige la sortie de shift_window vers /dev/null pour ne pas polluer stdout */
     int fd = open("/dev/null", O_WRONLY);
     if(fd == -1)
-        perror("open() in test_shift_window");
+    perror("open() in test_shift_window");
 
     // ---*--- --> ---*---
     p1 = create_packet(PTYPE_DATA, 5, 3, 4, "abcd");
@@ -710,9 +711,9 @@ void test_shift_window(void) {
     pkt_del(p2); pkt_del(p3);
 
     /*
-        Un paquet de fin de transfert est présent
-        dans la fenêtre mais on doit encore attendre
-        des paquets manquants
+    Un paquet de fin de transfert est présent
+    dans la fenêtre mais on doit encore attendre
+    des paquets manquants
     */
     rwin = init_window();
     p1 = create_packet(PTYPE_DATA, 5, 0, 4, "abcd");
@@ -732,9 +733,9 @@ void test_shift_window(void) {
     pkt_del(p2); pkt_del(p3);
 
     /*
-        Un paquet de fin de transfert est présent
-        dans la fenêtre et on ne doit plus attendre
-        de paquets manquants
+    Un paquet de fin de transfert est présent
+    dans la fenêtre et on ne doit plus attendre
+    de paquets manquants
     */
     rwin = init_window();
     p1 = create_packet(PTYPE_DATA, 5, 0, 4, "abcd");
@@ -752,7 +753,7 @@ void test_shift_window(void) {
 }
 
 /*
-    Vérifie le bon fonctionnement de la fonction in_window.
+Vérifie le bon fonctionnement de la fonction in_window.
 */
 void test_in_window(void) {
     win *rwin = init_window();
@@ -778,7 +779,7 @@ void test_in_window(void) {
 }
 
 /*
-    Vérifie le bon fonctionnement de la fonction build_ack.
+Vérifie le bon fonctionnement de la fonction build_ack.
 */
 void test_build_ack(void) {
     win * rwin = init_window();
@@ -786,7 +787,7 @@ void test_build_ack(void) {
     char ack[4];
 
     /*
-        On envoie un ack pour le premier paquet reçu (connexion)
+    On envoie un ack pour le premier paquet reçu (connexion)
     */
     pkt_t *p1 = create_packet(PTYPE_DATA, 5, 0, 4, "abcd");
     add_in_window(p1, rwin);
@@ -799,7 +800,7 @@ void test_build_ack(void) {
     pkt_del(p1); free_window(rwin); rwin = init_window();
 
     /*
-        On envoie un ack pour un paquet reçu quelconque
+    On envoie un ack pour un paquet reçu quelconque
     */
     rwin->last_in_seq = 10;
     rwin->free_space = 25;
@@ -811,8 +812,8 @@ void test_build_ack(void) {
     CU_ASSERT_EQUAL(pkt_get_length(p), 0);
 
     /*
-        Le dernier numéro de séquence reçu est 255, on vérifie
-        que l'ack correspondant a bien comme seqnum 0.
+    Le dernier numéro de séquence reçu est 255, on vérifie
+    que l'ack correspondant a bien comme seqnum 0.
     */
     rwin->last_in_seq = 255;
     build_ack(ack, rwin);
@@ -827,7 +828,7 @@ void test_build_ack(void) {
 }
 
 /*
-    Vérifie le bon fonctionnement de la fonction build_nack.
+Vérifie le bon fonctionnement de la fonction build_nack.
 */
 void test_build_nack(void) {
     win * rwin = init_window();
@@ -894,10 +895,10 @@ void * thread_receiver(void * filename) {
 }
 
 /*
-    Vérifie le bon fonctionnement de la foncion read_loop (qui
-    constitue le coeur du receiver). Il s'agit en gros de vérifier
-    si les ack/nack corrects sont écrit sur le socket lorsque des
-    paquets sont envoyés sur ce même socket.
+Vérifie le bon fonctionnement de la foncion read_loop (qui
+constitue le coeur du receiver). Il s'agit en gros de vérifier
+si les ack/nack corrects sont écrit sur le socket lorsque des
+paquets sont envoyés sur ce même socket.
 */
 void test_readloop(void) {
     // On crée un socket pour le sender
@@ -928,8 +929,8 @@ void test_readloop(void) {
     pkt_del(p_s);
 
     /*
-        La connexion a été correctement établie à partir d'ici, vérifions qu'un
-        ack de seqnum 1 a bien été renvoyé sur le socket du sender.
+    La connexion a été correctement établie à partir d'ici, vérifions qu'un
+    ack de seqnum 1 a bien été renvoyé sur le socket du sender.
     */
 
     // Lecture de l'ack reçu en échange du premier paquet
@@ -1012,6 +1013,75 @@ void test_readloop(void) {
     }
 }
 
+
+
+
+/*--------------------------------------------------------------------------+
+| Tests pour la fonction read_write_loop (et sous-fonctions) du sender      |
++---------------------------------------------------------------------------*/
+
+/*
+Vérifie que l'initialisation de la fenêtre de réception
+se déroule comme prévu.
+*/
+void test_initWindowTimer(void){
+    initWindow();
+
+
+    struct timespec value;
+    struct timespec interval;
+    value.tv_sec = 5;
+    value.tv_nsec = 0;
+    interval.tv_sec = 0;
+    interval.tv_nsec = 0;
+
+//    initTimer(value, interval, itimerspec);
+    CU_ASSERT_EQUAL(value.tv_sec, 5);
+    CU_ASSERT_EQUAL(value.tv_nsec, 0);
+    CU_ASSERT_EQUAL(interval.tv_sec, 0);
+    CU_ASSERT_EQUAL(interval.tv_nsec, 0);
+    int i;
+    for(i = 0; i < WINDOW_SIZE; i++) {
+        CU_ASSERT_EQUAL(windowTab[i].ack, 0);
+    }
+
+    return;
+}
+
+void test_write_on_socket2(void){
+    return;
+}
+
+void test_hdl(void){
+    return;
+}
+
+
+void test_seqnum_valid(void){
+    return;
+}
+
+void test_slideWindowTab(void){
+    return;
+}
+
+/*
+Vérifie le bon fonctionnement de la foncion read_loop (qui
+constitue le coeur du receiver). Il s'agit en gros de vérifier
+si les ack/nack corrects sont écrit sur le socket lorsque des
+paquets sont envoyés sur ce même socket.
+*/
+void test_read_write_loop(void) {
+    return;
+}
+
+
+
+
+
+
+
+
 /* Test Runner Code goes here */
 int main(void) {
     CU_pSuite basic = NULL;
@@ -1053,6 +1123,11 @@ int main(void) {
         (NULL == CU_add_test(basic, "in_window", test_in_window)) ||
         (NULL == CU_add_test(basic, "build_ack", test_build_ack)) ||
         (NULL == CU_add_test(basic, "build_nack", test_build_nack)) ||
+        (NULL == CU_add_test(basic, "initWindowTimer", test_initWindowTimer)) ||
+        (NULL == CU_add_test(basic, "slideWindowTab", test_slideWindowTab)) ||
+        (NULL == CU_add_test(basic, "hdl", test_hdl)) ||
+        (NULL == CU_add_test(basic, "seqnum_valid", test_seqnum_valid)) ||
+        (NULL == CU_add_test(basic, "read_write_loop", test_read_write_loop)) ||
         (NULL == CU_add_test(basic, "read_loop", test_readloop))
     )
     {
