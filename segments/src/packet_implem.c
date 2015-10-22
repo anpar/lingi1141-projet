@@ -42,8 +42,13 @@ void pkt_del(pkt_t *pkt)
 pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 {
 <<<<<<< HEAD
+<<<<<<< HEAD
 	if(len < 4)
 	return(E_NOHEADER);
+=======
+	if(len < 4)
+		return(E_NOHEADER);
+>>>>>>> 2c4e1e73638ecf8ef8feb178804b99da42dd0377
 
 	/*
 	* @return says that unless the error is E_NOHEADER,
@@ -67,6 +72,7 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 	* congestion (mais il est quand même valide).
 	*/
 	if(len == 4)
+<<<<<<< HEAD
 	return(PKT_OK);
 
 	if(len != 4 && pkt_get_type(pkt) != PTYPE_DATA)
@@ -165,6 +171,43 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 
         return(PKT_OK);
 >>>>>>> 0d3d5138a57e92073ba5c29f87d9ac986880843b
+=======
+		return(PKT_OK);
+
+	if(len != 4 && pkt_get_type(pkt) != PTYPE_DATA)
+		return(E_UNCONSISTENT);
+
+	if(len < 8)
+		return(E_UNCONSISTENT);
+
+	uint32_t received_crc = (uint8_t) data[len-4];
+	received_crc = (received_crc << 8) + (uint8_t) data[len-3];
+	received_crc = (received_crc << 8) + (uint8_t) data[len-2];
+	received_crc = (received_crc << 8) + (uint8_t) data[len-1];
+	uint32_t computed_crc = crc32(0L, (Bytef *) data, len-4);
+
+	if(received_crc != computed_crc)
+		return(E_CRC);
+
+	pkt_status_code c5 = pkt_set_crc(pkt, received_crc);
+	if(c5 != PKT_OK) {return(c5);}
+
+	if(len == 8) {return(E_NOPAYLOAD);}
+	if(len % 4 != 0) {return(E_PADDING);}
+
+	uint16_t padding = (4 - (pkt_get_length(pkt) % 4)) % 4;
+	if((4 + pkt_get_length(pkt) + padding + 4) != (uint16_t) len)
+		return(E_UNCONSISTENT);
+
+	if(pkt_get_type(pkt) != PTYPE_DATA && pkt_get_length(pkt) != 0)
+		return(E_UNCONSISTENT);
+
+	pkt_status_code c6 = pkt_set_payload(pkt, data+4, pkt_get_length(pkt));
+	if(c6 != PKT_OK)
+		return(c6);
+
+	return(PKT_OK);
+>>>>>>> 2c4e1e73638ecf8ef8feb178804b99da42dd0377
 }
 
 pkt_status_code pkt_encode(const pkt_t* pkt, char *buf, size_t *len)
