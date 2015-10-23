@@ -124,31 +124,49 @@ int seqnum_valid(int seqnum_pkt)
 */
 void slideWindowTab(int k)
 {
-    int k2 = k+1;
+    fprintf(stderr, "slideWTab 1\n");
+    if(k==0)
+    {
+        return;
+    }
+    int k2 = k;
+    k = k-1;
     if(k < 0) // case of [.|...|255|0|...|.]
     {
         k = k + 256;
         k2 = k2 + 256;
     }
+    fprintf(stderr, "slideWTab 2\n");
     while (k >= 0) // On vide les éléments qui ont été reçus
     {
+        fprintf(stderr, "slideWTab 2bis\n");
         windowTab[k].ack = 0;
-        timer_delete(windowTab[k].timerid);
+        fprintf(stderr, "slideWTab 2bis k est %d\n", k);
+        if(timer_delete(windowTab[k].timerid)!=0)
+        {
+            perror("timer_delete();");
+            return;
+        }
+        fprintf(stderr, "slideWTab 2ter\n");
         windowFree ++;
         k--;
     }
+    fprintf(stderr, "slideWTab 3\n");
     int j = 0;
     while(j < (32-k2)) // On slide la fenêtre en deux boucles while
     {
+        fprintf(stderr, "slideWTab 4 %d\n",j);
         windowTab[j] = windowTab[k2+j];
         j++;
     }
     while(j < 32) // On libère plusieurs cases au bout du tableau
     {
+        fprintf(stderr, "slideWTab 5 %d\n",j);
         windowTab[j].ack = 0;
-        timer_delete(windowTab[j].timerid);
+//        timer_delete(windowTab[j].timerid);
         j++;
     }
+    return;
 }
 
 /*
@@ -172,18 +190,6 @@ void read_write_loop(int sfd, char * filename) {
     seqnum_maker = 0;
 
 
-    struct timespec value;
-    struct timespec interval;
-    struct itimerspec itimerspec;
-
-    value.tv_sec = 5;
-    value.tv_nsec = 0;
-
-    interval.tv_sec = 0;
-    interval.tv_nsec = 0;
-
-    itimerspec.it_interval = interval;
-    itimerspec.it_value = value;
 
     printf("2 \n");
 
@@ -232,7 +238,7 @@ void read_write_loop(int sfd, char * filename) {
             to analyse it (ACK or NACK) */
             if (FD_ISSET(sfd, &readfds)) {
                 fprintf(stderr, "Reading on the socket and writing on stdout ");
-                ssize_t read_on_socket = read(sfd, buf, 8);
+                ssize_t read_on_socket = read(sfd, buf, 4);
                 if (read_on_socket == -1) {
                     perror("read()");
                     return;
@@ -246,27 +252,36 @@ void read_write_loop(int sfd, char * filename) {
                 /* PRENDRE LES MESURES EN FONCTION DE CE QUI EST LU */
                 pkt_t * pkt_temp = pkt_new();
                 uint8_t seqnum_pkt;
-                if(pkt_decode(buf, 8, pkt_temp) != PKT_OK)
+                if(pkt_decode(buf, 4, pkt_temp) != 0)
                 {
+                    fprintf(stderr,"pkt_decode() %d errno", (int) pkt_decode(buf, 4, pkt_temp));
                     perror("pkt_decode()");
                     return;
                 }
+                fprintf(stderr, "analyzeAck 1\n");
                 /* Si on reçoit un ack (attention:cumulatif), on modifie les données */
                 if(pkt_get_type(pkt_temp) == PTYPE_ACK)
                 {
+                    fprintf(stderr, "analyzeAck 2\n");
                     seqnum_pkt = pkt_get_seqnum(pkt_temp);
                     if(seqnum_valid(seqnum_pkt)==0)
                     {
+                        fprintf(stderr, "analyzeAck 3 seqnum est %d \n", seqnum_pkt);
                         int k = seqnum_pkt - lastack; // Nombre d'éléments cumulés reçus
                         slideWindowTab(k);
+                        fprintf(stderr, "analyzeAck 3b\n");
                         lastack = seqnum_pkt;
+                        fprintf(stderr, "analyzeAck 3c\n");
                     }
+                    fprintf(stderr, "analyzeAck 4\n");
                 }
                 else if(pkt_get_type(pkt_temp) == PTYPE_NACK)
                 {
+                    fprintf(stderr, "analyzeAck 5\n");
                     int i = pkt_get_seqnum(pkt_temp);
                     if(seqnum_valid(i)==0)
                     {
+                        fprintf(stderr, "analyzeAck 6\n");
                         i = i - lastack;
                         if(i < 0) // case of [.|...|255|0|...|.]
                         {
@@ -274,9 +289,23 @@ void read_write_loop(int sfd, char * filename) {
                         }
                         windowTab[i].ack = -1;
 
+                        struct timespec value;
+                        struct timespec interval;
+                        struct itimerspec itimerspec;
+
+                        value.tv_sec = 5;
+                        value.tv_nsec = 0;
+
+                        interval.tv_sec = 0;
+                        interval.tv_nsec = 0;
+
+                        itimerspec.it_interval = interval;
+                        itimerspec.it_value = value;
+
                         /* On écrit sur le socket */
                         int ret = write_on_socket2(sfd, windowTab[i].pkt_buf, 520);
                         if (ret == -1) {
+                            fprintf(stderr, "analyzeAck 7\n");
                             perror("write()");
                             return;
                         }
@@ -292,7 +321,9 @@ void read_write_loop(int sfd, char * filename) {
                     perror("Nor an ACK nor a NACK");
                     return;
                 }
+                fprintf(stderr, "analyzeAck 8\n");
                 pkt_del(pkt_temp);
+                fprintf(stderr, "analyzeAck finish\n");
 
             }
 
@@ -315,45 +346,86 @@ void read_write_loop(int sfd, char * filename) {
 
                 /* Find the first free case of the window
                 ack and timer initialised*/
-                int i;
+                int i=0;
+                fprintf(stderr, "afterRead 1\n");
                 while(windowTab[i].ack != 0)
                 {
+                    fprintf(stderr, "afterRead 2\n");
                     i++;
                 }
                 windowTab[i].ack = -1;
-                if(timer_create(CLOCK_REALTIME,NULL,windowTab[i].timerid)!=0)
+                fprintf(stderr, "afterRead 3\n");
+                if(timer_create(CLOCK_REALTIME,NULL,&windowTab[i].timerid)!=0)
                 {
                     perror("timer_create()");
                     return;
                 }
+                fprintf(stderr, "afterRead 4\n");
 
                 pkt_t * pkt_temp = pkt_new();
+                fprintf(stderr, "afterRead 4\n");
                 pkt_set_type(pkt_temp, PTYPE_DATA);
                 pkt_set_window(pkt_temp, windowFree-1);
                 pkt_set_seqnum(pkt_temp, seqnum_maker);
                 pkt_set_length(pkt_temp, read_on_stdin);
+                pkt_set_payload(pkt_temp, buf, read_on_stdin);
+                fprintf(stderr, "afterRead 5\n");
+
+                size_t max = 520;
 
                 /* On encode en pkt pour obtenir le CRC et le mettre dans un buffer */
-                if(pkt_encode(pkt_temp, windowTab[i].pkt_buf, (size_t *) &read_on_stdin) != PKT_OK)
+                if(pkt_encode(pkt_temp, windowTab[i].pkt_buf, &max) != 0)
                 {
-                    perror("pkt_encode()");
+                    fprintf(stderr,"pkt_encode() %d errno", (int) pkt_encode(pkt_temp, windowTab[i].pkt_buf, &max));
                     return;
                 }
                 windowFree --; // Il y a une place de libre de moins
+                fprintf(stderr, "afterRead 6\n");
 
                 /* On écrit sur le socket */
-                int ret = write_on_socket2(sfd, windowTab[i].pkt_buf, (read_on_stdin + 8));
+                fprintf(stderr, " max %d", (int) max);
+                int ret = write_on_socket2(sfd, windowTab[i].pkt_buf, max);
                 if (ret == -1) {
                     perror("write()");
                     return;
                 }
+
+                struct timespec value;
+                struct timespec interval;
+                struct itimerspec itimerspec;
+
+                value.tv_sec = 5;
+                value.tv_nsec = 0;
+
+                interval.tv_sec = 0;
+                interval.tv_nsec = 0;
+
+                itimerspec.it_interval = interval;
+                itimerspec.it_value = value;
+
+
+                fprintf(stderr, "afterRead 7 %p \n", &windowTab[i].timerid);
+                fprintf(stderr, "afterRead 7 %p \n", &windowTab[i+1].timerid);
+                fprintf(stderr, "afterRead 7 %p \n", &windowTab[i+2].timerid);
                 if(timer_settime(&windowTab[i].timerid,0,&itimerspec,NULL)!=0) //LANCER TIMER
                 {
+                    if(timer_create(CLOCK_REALTIME,NULL,&windowTab[i+1].timerid)!=0)
+                    {
+                        perror("timer_create()");
+                        return;
+                    }
+                    if(timer_settime(&windowTab[i+1].timerid,0,&itimerspec,NULL)!=0) //LANCER TIMER
+                    {
+                        perror("timer_settime2()");
+                        return;
+                    }
                     perror("timer_settime()");
                     return;
                 }
+                fprintf(stderr, "afterRead 8\n");
                 pkt_del(pkt_temp);
                 seqnum_maker ++;
+                fprintf(stderr, "afterRead 9\n");
                 seqnum_maker = seqnum_maker % 256;
             }
         }

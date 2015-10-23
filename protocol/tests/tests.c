@@ -1179,26 +1179,35 @@ void test_read_write_loop(void) {
     printf("test2 \n");
 
     // On crée un fichier dans lequel on écrit qlqchose
-    FILE * fp;
+    FILE * fp; // si fopen
+//    int fp; // si open
     char buf[MAX_PKT_SIZE];
     char buf_to_send[12];
     size_t len_to_send = 12;
     printf("test3 \n");
-
-    fp=fopen("file.txt","w+");
+//    fp = open("filetxt",O_CREAT,S_IRUSR|S_IWUSR);
+    fp=fopen("filetxt","r+");
+//    printf("%d fp \n", fp);
     if(fp == NULL)
     {
-        perror("fopen()");
+        perror("open()");
         return;
     }
     printf("test5 \n");
 
-    read_write_loop(sfd_sender,"file.txt");
+    char x[] = "Motde13bytes";
+    printf("fwrite %d et %d \n", (int) fwrite(x, sizeof(x[0]), sizeof(x), fp), (int) sizeof(x));
+//    ssize_t ret = write(fp, x, 10);
+/*    if (ret == -1) {
+        printf("rrno %d \n", errno);
+        perror("write() mot12");
+        return;
+    }
+    printf("test6 %d \n", (int) ret);
+    */
+    printf("test6 \n");
+    read_write_loop(sfd_sender,"../filetxt");
 
-    char * x = "Motde12bytes";
-    fwrite(x, sizeof(x[0]), 12, fp);
-
-    printf("test6 %d \n", (int) (sizeof(x)/sizeof(x[0])));
 
     /* On lit les données sur le socket */
     ssize_t read_on_socket = read(sfd_sender, (void *) buf, MAX_PKT_SIZE);
@@ -1236,7 +1245,7 @@ void test_read_write_loop(void) {
     pkt_del(p_e);
 
 
-    fclose(fp);
+//    fclose(fp);
     return;
 
 }

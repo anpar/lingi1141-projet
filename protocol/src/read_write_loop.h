@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <time.h>
+#include "packet_interface.h"
 
 #define BUF_SIZE 512 // nombre de bytes lus sur stdin ou dans le fichier
 #define WINDOW_SIZE 32 // taille de la fenêtre de l'émetteur
