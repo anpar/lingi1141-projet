@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <time.h>
+#include <sys/types.h>
 #include "packet_interface.h"
 
 #define BUF_SIZE 512 // nombre de bytes lus sur stdin ou dans le fichier
@@ -26,6 +27,8 @@ struct window2 {
   int ack;
   timer_t timerid;
 };
+
+//struct timer_t * timers;
 
 
 struct window2 windowTab[WINDOW_SIZE]; // Fenêtre de l'émetteur

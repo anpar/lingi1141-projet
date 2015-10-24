@@ -61,6 +61,7 @@ bool shift_window(win * rwin, int out_fd)
             // En principe toujours vrai
             if(pkt_get_seqnum(rwin->buffer[i]) == ((rwin->last_in_seq + 1) % 256)) {
                 rwin->last_in_seq = (rwin->last_in_seq + 1) % 256;
+                fprintf(stderr,"last_in_seq de %d à %d \n", (int) rwin->last_in_seq - 1, (int) rwin->last_in_seq);
 
                 ssize_t written_on_out = 0;
                 while (written_on_out != pkt_get_length(rwin->buffer[i])) {
@@ -71,6 +72,7 @@ bool shift_window(win * rwin, int out_fd)
 
                     written_on_out += ret;
                 }
+                fprintf(stderr, "printed on_out %d bytes \n", (int) written_on_out);
 
                 pkt_del(rwin->buffer[i]);
                 rwin->buffer[i] = NULL;
@@ -108,12 +110,14 @@ bool in_window(win * rwin, uint8_t seqnum)
 	int max = (rwin->last_in_seq + WIN_SIZE) % 256;
 	int min = rwin->last_in_seq;
 
+    fprintf(stderr,"max %d min %d seqnum %d last_in_seq %d \n", max, min, (int) seqnum, (int) rwin->last_in_seq);
+
 	/*
 	 * La fenêtre ressemble à ça :
 	 *      max          min
 	 * ------]------------|-----
 	 */
-	if((rwin->last_in_seq + WIN_SIZE) > 256) {
+	if((rwin->last_in_seq + WIN_SIZE) >= 256) {
 		return (seqnum > min) || (seqnum <= max);
 	}
 	/* La fenêtre ressemble à ça :
@@ -233,6 +237,7 @@ void read_loop(int sfd, char * filename)
 				/* On décode les données reçues dans d_pkt */
                 pkt_t *d_pkt = pkt_new();
                 pkt_status_code c = pkt_decode((const char *) buf, (const size_t) read_on_socket, d_pkt);
+                fprintf(stderr, "status_code %d et get_seqnum() %d et in_window %d \n", c, (int) pkt_get_seqnum(d_pkt), in_window(rwin, pkt_get_seqnum(d_pkt)));
                 /* Si le paquet reçu est valide et que le numéro de séquence
                    rentre dans le fenêtre de réception, on le traite */
                 if(c == PKT_OK && in_window(rwin, pkt_get_seqnum(d_pkt)))
@@ -271,12 +276,12 @@ void read_loop(int sfd, char * filename)
             }
 
 			/* On peut écrire sur out_fd */
-			if(FD_ISSET(out_fd, &writefds))
-			{
+//			if(FD_ISSET(out_fd, &writefds))
+//			{
 				if(shift_window(rwin, out_fd)) {
                     fprintf(stderr, "Fin du transfert.\n");
                     break;
-                }
+//                }
 			}
 		}
 	}
