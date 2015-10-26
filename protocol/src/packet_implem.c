@@ -59,7 +59,12 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 	overflow (> 127) et on se retrouvait avec une valeur négative pour data[0] */
 	pkt_status_code c2 = pkt_set_window(pkt, data[0] & 0b00011111);
 	pkt_status_code c3 = pkt_set_seqnum(pkt, data[1]);
-	pkt_status_code c4 = pkt_set_length(pkt, (data[2] << 8) | data[3]);
+
+	/* Plus ou moins idem ici */
+	uint16_t received_length = (uint8_t) data[2];
+	received_length = (received_length << 8) + (uint8_t) data[3];
+
+	pkt_status_code c4 = pkt_set_length(pkt, received_length);
 
 	if(c1 != PKT_OK) {return(c1);}
 	if(c2 != PKT_OK) {return(c2);}

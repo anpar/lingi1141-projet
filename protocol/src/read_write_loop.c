@@ -183,12 +183,14 @@ void slideWindowTab(int k) {
         windowTab[j] = windowTab[k2+j];
         windowTab[j].timerid = windowTab[k2+j].timerid;
         windowTab[j].ack = windowTab[k2+j].ack;
+        windowTab[j].data_size = windowTab[k2+j].data_size;
         memcpy(windowTab[j].pkt_buf, windowTab[k2+j].pkt_buf, 520);
     }
 
     // On libère plusieurs cases au bout du tableau
     while(j < 32) {
         windowTab[j].ack = 0;
+        windowTab[j].data_size = 0;
         if(timer_create(CLOCK_REALTIME, NULL, &windowTab[j].timerid) != 0) {
             perror("timer_create()");
             return;
