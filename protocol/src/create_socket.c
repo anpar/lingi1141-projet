@@ -14,7 +14,7 @@ int create_socket(struct sockaddr_in6 *source_addr, int src_port, struct sockadd
 
     /* The sender is calling create_socket */
     if(source_addr != NULL) {
-        socklen_t addrlen = sizeof(*source_addr);
+        socklen_t addrlen = sizeof(struct sockaddr_in6);
 
         if(src_port > 0)
             source_addr->sin6_port = htons(src_port);
@@ -27,7 +27,7 @@ int create_socket(struct sockaddr_in6 *source_addr, int src_port, struct sockadd
 
     /* The receiver is calling create_socket */
     if(dest_addr != NULL) {
-        socklen_t addrlen = sizeof(*dest_addr);
+        socklen_t addrlen = sizeof(struct sockaddr_in6);
 
         if(dst_port > 0)
             dest_addr->sin6_port = htons(dst_port);
