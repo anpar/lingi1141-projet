@@ -272,10 +272,6 @@ void read_loop(int sfd, char * filename)
 				} else {
 				    /* Sinon on ne fait rien, on l'ignore */
                     fprintf(stderr, "This thing isn't valid or can't go in the reception window (%d).\n", (int) c);
-                    fprintf(stderr, "type : %d\n", pkt_get_type(d_pkt));
-                    fprintf(stderr, "window : %d\n", pkt_get_window(d_pkt));
-                    fprintf(stderr, "length : %d\n", pkt_get_length(d_pkt));
-                    fprintf(stderr, "seqnum : %d\n", pkt_get_seqnum(d_pkt));
                 }
             }
 
