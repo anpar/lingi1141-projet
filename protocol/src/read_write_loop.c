@@ -10,7 +10,7 @@
 void initWindow() {
     int j;
     for(j = 0; j < 32; j++) {
-        if(timer_create(CLOCK_REALTIME,NULL,&windowTab[j].timerid) != 0) {
+        if(timer_create(CLOCK_REALTIME, NULL, &windowTab[j].timerid) != 0) {
             perror("timer_create()");
             return;
         }
@@ -60,7 +60,7 @@ void hdl() {
     struct timespec value;
     struct timespec interval;
     struct itimerspec itimerspec;
-    // initTimer(value, interval, itimerspec);
+
     value.tv_sec = 5;
     value.tv_nsec = 0;
 
@@ -119,10 +119,13 @@ bool seqnum_valid(int seqnum_pkt)
 
 /*
     Met à jour le fenêtre d'envoi à la réception d'un ack.
-    k représente :
+    k représente le nombre d'éléments de la fenêtre de réception
+    qui on été acquis.
 */
 void slideWindowTab(int k) {
     fprintf(stderr, "Mise à jour de la fenêtre d'envoi.\n");
+
+    /* Pas d'élements acquis */
     if(k == 0) {
         return;
     }
@@ -156,50 +159,22 @@ void slideWindowTab(int k) {
     fprintf(stderr, "Décalage de la fenêtre de réception.\n");
     int j;
     for(j = 0; j < (32-k2); j++){
-        //fprintf(stderr, "timerid(j) %p ack(j) %d timerid(j+k2) %p ack(j+2) %d\n",windowTab[j].timerid, windowTab[j].ack, windowTab[k2+j].timerid, windowTab[k2+j].ack);
         windowTab[j] = windowTab[k2+j];
-
-        /* ON déplace les timers */
-        struct itimerspec timerspec;
-        if(timer_gettime(windowTab[k2+j].timerid, &timerspec) != 0) {
-			perror("timer_gettime()");
-			return;
-		}
-
-        if(timer_settime(windowTab[j].timerid, 0, &timerspec, NULL) != 0) {
-			perror("timer_settime()");
-			return;
-		}
-
-        //windowTab[j].timerid = windowTab[k2+j].timerid;
-        //fprintf(stderr, " timerid(j) %p ack(j) %d timerid(j+k2) %p ack(j+2) %d\n",windowTab[j].timerid, windowTab[j].ack, windowTab[k2+j].timerid, windowTab[k2+j].ack);
+        windowTab[j].timerid = windowTab[k2+j].timerid;
     }
 
     // On libère plusieurs cases au bout du tableau
-    int w = 0;
     while(j < 32) {
         windowTab[j].ack = 0;
-        if(timer_create(CLOCK_REALTIME, NULL, &windowTab[w].timerid) != 0) {
+        if(timer_create(CLOCK_REALTIME, NULL, &windowTab[j].timerid) != 0) {
             perror("timer_create()");
             return;
         }
+
         j++;
-        w++;
     }
 
     return;
-}
-
-/*
-    FIX : inutile cette fonction non?
-*/
-int wait_for_ack()
-{
-    while(seqnum_maker != lastack-1) {
-        //wait
-    }
-
-    return 0;
 }
 
 /*
@@ -268,8 +243,9 @@ void read_write_loop(int sfd, char * filename) {
                 /* PRENDRE LES MESURES EN FONCTION DE CE QUI EST LU */
                 pkt_t * pkt_temp = pkt_new();
                 uint8_t seqnum_pkt;
-                if(pkt_decode(buf, 4, pkt_temp) != 0) {
-                    fprintf(stderr,"pkt_decode() a échoué et retourné %d.\n", (int) pkt_decode(buf, 4, pkt_temp));
+                pkt_status_code p = pkt_decode(buf, 4, pkt_temp);
+                if(p != PKT_OK) {
+                    fprintf(stderr,"pkt_decode() a échoué et retourné %d.\n", (int) p);
                     return;
                 }
 
@@ -364,8 +340,9 @@ void read_write_loop(int sfd, char * filename) {
 
                 size_t max = 520;
                 /* On encode en pkt pour obtenir le CRC et le mettre dans un buffer */
-                if(pkt_encode(pkt_temp, windowTab[i].pkt_buf, &max) != 0) {
-                    fprintf(stderr,"pkt_encode() a échoué et a retourné %d.\n", (int) pkt_encode(pkt_temp, windowTab[i].pkt_buf, &max));
+                pkt_status_code p = pkt_encode(pkt_temp, windowTab[i].pkt_buf, &max);
+                if(p != PKT_OK) {
+                    fprintf(stderr,"pkt_encode() a échoué et a retourné %d.\n", (int) p);
                     return;
                 }
                 windowFree--; // Il y a une place de libre de moins
