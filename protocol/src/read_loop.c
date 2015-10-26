@@ -191,7 +191,7 @@ void read_loop(int sfd, char * filename)
 
 	/* Ouverture de filename s'il est spécifié */
 	if((ff = (filename != NULL))) {
-		fd = open(filename, O_WRONLY|O_CREAT|O_TRUNC);
+		fd = open(filename, O_WRONLY|O_CREAT|O_TRUNC, 777);
 		if(fd == -1) {
 			perror("open()");
 			return;

@@ -4,6 +4,13 @@
 #include "string.h" /* memset */
 
 /*
+    Permet d'empêcher le sender de continuer
+    à essayer de lire sur stdin une fois que
+    EOF a été atteint sur celui-ci.
+*/
+bool eof_reached = false;
+
+/*
     Initialise la fenêtre en créant un timer non-armé par
     "case" de la fenêtre.
 */
@@ -115,6 +122,20 @@ bool seqnum_valid(int seqnum_pkt)
     }
 
     return false;
+}
+
+/*
+    Retourne vrai si la fenêtre est vide.
+*/
+bool is_window_acknowledged() {
+    int i;
+    for(i = 0; i < WINDOW_SIZE; i++) {
+        if(windowTab[i].ack != 0) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 /*
@@ -258,6 +279,9 @@ void read_write_loop(int sfd, char * filename) {
                         int k = seqnum_pkt - lastack; // Nombre d'éléments cumulés reçus
                         slideWindowTab(k);
                         lastack = seqnum_pkt;
+
+                        if(is_window_acknowledged() && eof_reached)
+                            return;
                     }
                 } else if(pkt_get_type(pkt_temp) == PTYPE_NACK) {
                     fprintf(stderr, "PTYPE_NACK reçu.\n");
@@ -310,7 +334,8 @@ void read_write_loop(int sfd, char * filename) {
             /* Characacters become available for reading on stdin or in the file,
             we have to directly write those characacters on the socket. Need a free
             place in the windowtable */
-            if((fileDesc == STDIN_FILENO && FD_ISSET(fileDesc, &readfds) && FD_ISSET(sfd, &writefds) && windowFree > 0) || (fileDesc != STDIN_FILENO && FD_ISSET(sfd, &writefds) && windowFree > 0) ) {
+            if(!eof_reached &&  ((fileDesc == STDIN_FILENO && FD_ISSET(fileDesc, &readfds) && FD_ISSET(sfd, &writefds) && windowFree > 0) ||
+                                (fileDesc != STDIN_FILENO && FD_ISSET(sfd, &writefds) && windowFree > 0))) {
                 fprintf(stderr, "Lecture de données et envoi vers le récepteur ");
                 ssize_t read_on_stdin = read(fileDesc, buf, BUF_SIZE);
                 if (read_on_stdin == -1) {
@@ -318,12 +343,12 @@ void read_write_loop(int sfd, char * filename) {
                     return;
                 } else if (read_on_stdin == 0) {
                     fprintf(stderr, "(EOF).\n");
+                    eof_reached = true;
                 }
 
                 fprintf(stderr, "(%d bytes).\n", (int) read_on_stdin);
 
-                /* Find the first free case of the window
-                ack and timer initialised*/
+                /* Find the first free case of the window ack and timer initialised */
                 int i = 0;
                 while(windowTab[i].ack != 0) {
                     i++;
@@ -367,22 +392,15 @@ void read_write_loop(int sfd, char * filename) {
                 itimerspec.it_interval = interval;
                 itimerspec.it_value = value;
 
-                // fprintf(stderr, "afterRead itimerspec %d %d \n", (int) itimerspec.it_value.tv_sec, (int) itimerspec.it_value.tv_nsec);
-                // fprintf(stderr, "afterRead 7 %p \n", windowTab[i].timerid);
-                // fprintf(stderr, "afterRead 7 %p \n", windowTab[i+1].timerid);
-                // fprintf(stderr, "afterRead 7 %p \n", windowTab[i+2].timerid);
-
                 // On lance le timer correspondant
                 if(timer_settime(windowTab[i].timerid, 0, &itimerspec, NULL) != 0) {
                     perror("timer_settime()");
                     return;
                 }
 
-                // fprintf(stderr, "afterRead 8\n");
                 pkt_del(pkt_temp);
                 seqnum_maker++;
                 seqnum_maker = seqnum_maker % 256;
-                // fprintf(stderr, "afterRead 9 fin envoie données, seqnum_maker %d \n", seqnum_maker);
             }
         }
     }
