@@ -1125,15 +1125,15 @@ void test_seqnum_valid(void){
     int i = 253;
     while(i<29 || i>252)
     {
-        CU_ASSERT_EQUAL(seqnum_valid(i), 0);
+        CU_ASSERT_EQUAL(seqnum_valid(i), true);
         i=((i+1)%256);
     }
     while(i>28 && i<253)
     {
-        CU_ASSERT_EQUAL(seqnum_valid(i), -1);
+        CU_ASSERT_EQUAL(seqnum_valid(i), false);
         i++;
     }
-    CU_ASSERT_EQUAL(seqnum_valid(29), -1);
+    CU_ASSERT_EQUAL(seqnum_valid(29), false);
 
     return;
 }
@@ -1300,9 +1300,9 @@ int main(void) {
         (NULL == CU_add_test(basic, "build_nack", test_build_nack)) ||
         (NULL == CU_add_test(basic, "initWindowTimer", test_initWindowTimer)) ||
         (NULL == CU_add_test(basic, "slideWindowTab", test_slideWindowTab)) ||
-        //        (NULL == CU_add_test(basic, "hdl", test_hdl)) ||
+        (NULL == CU_add_test(basic, "hdl", test_hdl)) ||
         (NULL == CU_add_test(basic, "seqnum_valid", test_seqnum_valid)) ||
-        (NULL == CU_add_test(basic, "read_write_loop", test_read_write_loop)) ||
+        //(NULL == CU_add_test(basic, "read_write_loop", test_read_write_loop)) ||
         (NULL == CU_add_test(basic, "read_loop", test_readloop))
     )
     {
