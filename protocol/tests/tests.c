@@ -7,6 +7,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <pthread.h>
+#include <signal.h>
+#include <time.h>
 
 #include "../src/read_write_loop.h"
 #include "../src/read_loop.h"
@@ -1035,7 +1037,7 @@ void test_initWindowTimer(void){
     interval.tv_sec = 0;
     interval.tv_nsec = 0;
 
-//    initTimer(value, interval, itimerspec);
+    //    initTimer(value, interval, itimerspec);
     CU_ASSERT_EQUAL(value.tv_sec, 5);
     CU_ASSERT_EQUAL(value.tv_nsec, 0);
     CU_ASSERT_EQUAL(interval.tv_sec, 0);
@@ -1052,18 +1054,103 @@ void test_write_on_socket2(void){
     return;
 }
 
+
+/* Fonction de capture du signal SIGALRM */
+void hdl2()
+{
+    struct itimerspec timerspec;
+    if(timer_gettime(windowTab[1].timerid, &timerspec)!=0)
+    {
+        perror("timer_gettime()");
+        return;
+    }
+    if(timerspec.it_value.tv_sec==0)
+    {
+        windowTab[1].ack = 0;
+    }
+}
+
+
+/* Le test ne réussira que s'il sort de sa boucle, càd si la fonction qui
+capte le signal SIGALRM fonctionne et change la valeur de l'ack */
 void test_hdl(void){
+    signal(SIGALRM, hdl2);
+    windowTab[1].ack = -1;
+
+    if(timer_create(CLOCK_REALTIME,NULL,&windowTab[1].timerid)!=0)
+    {
+        perror("timer_create()");
+        return;
+    }
+
+    struct timespec value;
+    value.tv_sec = 3;
+    value.tv_nsec = 0;
+    struct timespec interval;
+    interval.tv_sec = 0;
+    interval.tv_nsec = 0;
+
+    struct itimerspec timerspec;
+    timerspec.it_interval = interval;
+    timerspec.it_value = value;
+
+    if(timer_settime(windowTab[1].timerid,0,&timerspec,NULL)!=0)
+    {
+        perror("timer_settime()");
+        return;
+    }
+
+    while(windowTab[1].ack == -1)
+    {
+        //nothing
+    }
+
     return;
 }
 
 
+void timer_helper(void)
+{
+    int i;
+    for(i=0; i<32; i++)
+    {
+        windowTab[i].timerid = 0;
+        CU_ASSERT_EQUAL(timer_create(CLOCK_REALTIME,NULL,&windowTab[i].timerid),0);
+    }
+}
+
 void test_seqnum_valid(void){
+    // case [253|254|255|0...|28]
+    lastack = 253;
+    int i = 253;
+    while(i<29 || i>252)
+    {
+        CU_ASSERT_EQUAL(seqnum_valid(i), 0);
+        i=((i+1)%256);
+    }
+    while(i>28 && i<253)
+    {
+        CU_ASSERT_EQUAL(seqnum_valid(i), -1);
+        i++;
+    }
+    CU_ASSERT_EQUAL(seqnum_valid(29), -1);
+
     return;
 }
 
 void test_slideWindowTab(void){
+    lastack = 253;
+    int b = 3 - lastack;
+    timer_helper();
+    slideWindowTab(b);
+    int i;
+    for(i=25; i<32; i++)
+    {
+        CU_ASSERT_EQUAL(windowTab[i].ack, 0);
+    }
     return;
 }
+
 
 /*
 Vérifie le bon fonctionnement de la foncion read_loop (qui
@@ -1072,7 +1159,95 @@ si les ack/nack corrects sont écrit sur le socket lorsque des
 paquets sont envoyés sur ce même socket.
 */
 void test_read_write_loop(void) {
+
+    // On crée un socket pour le sender
+    struct sockaddr_in6 addr;
+    const char *err = real_address("::", &addr);
+    if (err) {
+        fprintf(stderr, "Could not resolve hostname %s: %s\n", "::", err);
+        return;
+    }
+    int sfd_sender = create_socket(NULL, -1, &addr, 1200); /* Connected */
+    printf("test1 \n");
+
+    int sfd_receiver = create_socket(&addr, 1200, NULL, -1); /* Bound */
+    if(connect(sfd_receiver, (const struct sockaddr *) &addr, sizeof(addr)) == 0) {
+        fprintf(stderr, "Receiver is connected to the sender.\n");
+    }
+
+
+    printf("test2 \n");
+
+    // On crée un fichier dans lequel on écrit qlqchose
+    FILE * fp; // si fopen
+//    int fp; // si open
+    char buf[MAX_PKT_SIZE];
+    char buf_to_send[12];
+    size_t len_to_send = 12;
+    printf("test3 \n");
+//    fp = open("filetxt",O_CREAT,S_IRUSR|S_IWUSR);
+    fp=fopen("filetxt","r+");
+//    printf("%d fp \n", fp);
+    if(fp == NULL)
+    {
+        perror("open()");
+        return;
+    }
+    printf("test5 \n");
+
+    char x[] = "Motde13bytes";
+    printf("fwrite %d et %d \n", (int) fwrite(x, sizeof(x[0]), sizeof(x), fp), (int) sizeof(x));
+//    ssize_t ret = write(fp, x, 10);
+/*    if (ret == -1) {
+        printf("rrno %d \n", errno);
+        perror("write() mot12");
+        return;
+    }
+    printf("test6 %d \n", (int) ret);
+    */
+    printf("test6 \n");
+    read_write_loop(sfd_sender,"../filetxt");
+
+
+    /* On lit les données sur le socket */
+    ssize_t read_on_socket = read(sfd_sender, (void *) buf, MAX_PKT_SIZE);
+    if (read_on_socket <= 0) {
+        perror("read()");
+        return;
+    }
+    printf("test7 lu sur le socket %d bytes \n", (int) read_on_socket);
+    /* On décode les données reçues dans d_pkt */
+    pkt_t * p_r = pkt_new();
+    pkt_status_code c = pkt_decode((const char *) buf, (const size_t) read_on_socket, p_r);
+    printf("test8 \n");
+    // Comparaison des données reçues et attendues
+    CU_ASSERT_EQUAL(c, PKT_OK);
+    pkt_t * p_e = create_packet(PTYPE_DATA, 31, 1, 12, "Motde12bytes");
+    CU_ASSERT_PKT_EQUAL(p_r, p_e, 0);
+
+    printf("test9 \n");
+    pkt_del(p_r); pkt_del(p_e);
+
+    /*
+    La connexion a été correctement établie à partir d'ici, vérifions qu'un
+    ack de seqnum 1 a bien été renvoyé sur le socket du sender.
+    */
+
+    // Lecture de l'ack reçu en échange du premier paquet
+    p_e = create_packet(PTYPE_ACK, 30, 1, 0, NULL);
+    CU_ASSERT_EQUAL(pkt_encode(p_e, buf_to_send, &len_to_send), PKT_OK);
+    write_on_socket(sfd_sender, buf_to_send, len_to_send);
+
+    // Vérifions qu'il a bien pris les mesures nécessaires à la réception d'un ack
+    CU_ASSERT_EQUAL(windowTab[0].ack, 0);
+    CU_ASSERT_EQUAL(windowFree, 32);
+
+    pkt_del(p_e);
+
+
+//    fclose(fp);
     return;
+
 }
 
 
@@ -1125,7 +1300,7 @@ int main(void) {
         (NULL == CU_add_test(basic, "build_nack", test_build_nack)) ||
         (NULL == CU_add_test(basic, "initWindowTimer", test_initWindowTimer)) ||
         (NULL == CU_add_test(basic, "slideWindowTab", test_slideWindowTab)) ||
-        (NULL == CU_add_test(basic, "hdl", test_hdl)) ||
+        //        (NULL == CU_add_test(basic, "hdl", test_hdl)) ||
         (NULL == CU_add_test(basic, "seqnum_valid", test_seqnum_valid)) ||
         (NULL == CU_add_test(basic, "read_write_loop", test_read_write_loop)) ||
         (NULL == CU_add_test(basic, "read_loop", test_readloop))
