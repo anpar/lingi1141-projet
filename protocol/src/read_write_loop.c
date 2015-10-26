@@ -84,11 +84,11 @@ void hdl() {
             return;
         }
 
-        if(timerspec.it_value.tv_sec == 0 && timerspec.it_value.tv_nsec == 0) {
-            fprintf(stderr,"Le timer du paquet #%d a expiré.\n", (int) seqnum_maker + j);
+        if(timerspec.it_value.tv_sec == 0 && timerspec.it_value.tv_nsec == 0 && windowTab[j].ack == -1) {
+            fprintf(stderr,"Le timer du paquet #%d a expiré.\n", (int) (lastack + j) % 256);
 
             /* On renvoie ce paquet */
-            int ret = write_on_socket2(socketNumber, windowTab[j].pkt_buf, 520);
+            int ret = write_on_socket2(socketNumber, windowTab[j].pkt_buf, windowTab[j].data_size);
             if (ret == -1) {
                 perror("write()");
                 return;
@@ -182,6 +182,8 @@ void slideWindowTab(int k) {
     for(j = 0; j < (32-k2); j++){
         windowTab[j] = windowTab[k2+j];
         windowTab[j].timerid = windowTab[k2+j].timerid;
+        windowTab[j].ack = windowTab[k2+j].ack;
+        memcpy(windowTab[j].pkt_buf, windowTab[k2+j].pkt_buf, 520);
     }
 
     // On libère plusieurs cases au bout du tableau
@@ -275,7 +277,7 @@ void read_write_loop(int sfd, char * filename) {
                     fprintf(stderr, "PTYPE_ACK reçu.\n");
                     seqnum_pkt = pkt_get_seqnum(pkt_temp);
                     if(seqnum_valid(seqnum_pkt)) {
-                        fprintf(stderr, "ACK pour le numéro %d.\n", seqnum_pkt);
+                        fprintf(stderr, "ACK pour les numéros < %d.\n", seqnum_pkt);
                         int k = seqnum_pkt - lastack; // Nombre d'éléments cumulés reçus
                         slideWindowTab(k);
                         lastack = seqnum_pkt;
@@ -294,7 +296,6 @@ void read_write_loop(int sfd, char * filename) {
                             i = i+256;
                         }
 
-                        /* FIX: pourquoi -1 ? */
                         windowTab[i].ack = -1;
 
                         struct timespec value;
@@ -311,14 +312,14 @@ void read_write_loop(int sfd, char * filename) {
                         itimerspec.it_value = value;
 
                         /* On renvoie le paquet */
-                        int ret = write_on_socket2(sfd, windowTab[i].pkt_buf, 520);
+                        int ret = write_on_socket2(sfd, windowTab[i].pkt_buf, windowTab[i].data_size);
                         if (ret == -1) {
                             perror("write()");
                             return;
                         }
 
                         /* On relance le timer associé au paquet renvoyé */
-                        if(timer_settime(windowTab[i].timerid,0,&itimerspec,NULL)!=0) {
+                        if(timer_settime(windowTab[i].timerid, 0, &itimerspec, NULL)!=0) {
                             perror("timer_settime()");
                             return;
                         }
@@ -348,7 +349,8 @@ void read_write_loop(int sfd, char * filename) {
 
                 fprintf(stderr, "(%d bytes).\n", (int) read_on_stdin);
 
-                /* Find the first free case of the window ack and timer initialised */
+                /* FIX : correct de faire ça?
+                Find the first free case of the window ack and timer initialised */
                 int i = 0;
                 while(windowTab[i].ack != 0) {
                     i++;
@@ -366,6 +368,8 @@ void read_write_loop(int sfd, char * filename) {
                 size_t max = 520;
                 /* On encode en pkt pour obtenir le CRC et le mettre dans un buffer */
                 pkt_status_code p = pkt_encode(pkt_temp, windowTab[i].pkt_buf, &max);
+                windowTab[i].data_size = max;
+
                 if(p != PKT_OK) {
                     fprintf(stderr,"pkt_encode() a échoué et a retourné %d.\n", (int) p);
                     return;
