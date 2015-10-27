@@ -55,13 +55,13 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 	*/
 	uint8_t received_type = (uint8_t) data[0];
 	received_type = received_type >> 5;
-	//fprintf(stderr, "type = %d.\n", received_type);
+	fprintf(stderr, "type = %d.\n", received_type);
 	
 	pkt_status_code c1 = pkt_set_type(pkt, received_type);
 	/* Le cast en uint8_t permet de corriger un bug qui apparaissait lorsqu'on
 	décodait un paquet de type PTYPE_NACK, la valeur data[0] présente alors un
 	overflow (> 127) et on se retrouvait avec une valeur négative pour data[0] */
-	pkt_status_code c2 = pkt_set_window(pkt, data[0] & 0b00011111);
+	pkt_status_code c2 = pkt_set_window(pkt, (uint8_t) data[0] & 0b00011111);
 	pkt_status_code c3 = pkt_set_seqnum(pkt, data[1]);
 
 	/* Plus ou moins idem ici */
@@ -118,7 +118,7 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 
 pkt_status_code pkt_encode(const pkt_t* pkt, char *buf, size_t *len)
 {
-	buf[0] = (pkt_get_type(pkt) << 5) | pkt_get_window(pkt);
+	buf[0] = (uint8_t) (pkt_get_type(pkt) << 5) | pkt_get_window(pkt);
 	buf[1] = pkt_get_seqnum(pkt);
 	buf[2] = (pkt_get_length(pkt) >> 8) & 0xFF;
 	buf[3] = pkt_get_length(pkt) & 0xFF;
