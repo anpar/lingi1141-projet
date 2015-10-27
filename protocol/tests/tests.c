@@ -9,6 +9,7 @@
 #include <pthread.h>
 #include <signal.h>
 #include <time.h>
+#include <arpa/inet.h> /* inet_ntop */
 
 #include "../src/read_write_loop.h"
 #include "../src/read_loop.h"
@@ -28,6 +29,59 @@ int clean_suite(void) {
 
 /* Test case functions */
 
+/*
+ * FIX : ajouter cette fonction aux tests provoque l'échec de 
+ * certains tests qui fonctionnent très bien en temps normal.
+ */
+void test_real_address(void) {
+        struct sockaddr_in6 * rval; 
+        const char * address, * t;
+        char * dst;
+        
+        /* Case #1 : rval is NULL */
+        rval = NULL;
+        address = "example.net";
+
+        CU_ASSERT_STRING_EQUAL(real_address(address, rval), "rval can't be NULL.\n");
+
+        /*  Case #2*/
+        rval = (struct sockaddr_in6 *) malloc(sizeof(struct sockaddr_in6));
+
+        CU_ASSERT(real_address(address, rval) == NULL);
+        
+        dst = (char *) malloc(40 * sizeof(char));
+        t = inet_ntop(AF_INET6, (void *) &(rval->sin6_addr.s6_addr), dst, 40 * sizeof(char));
+        
+        CU_ASSERT(t != NULL);
+        CU_ASSERT_STRING_EQUAL(dst, "2606:2800:220:1:248:1893:25c8:1946");
+        
+        /*
+         * FIX : quid des autres informations de rval?
+         *       
+         * rval->sin6_family : 10.
+         * rval->sin6_port : 0.
+         * rval->sin6_flowinfo : 0.
+         * rval->sin6_addr : 2606:2800:220:1:248:1893:25c8:1946.
+         * rval->sin6_scope_id : 0.
+         *
+         * Est-ce normal que tout soit à 0?
+         */
+
+        /*
+         * Case #3
+         */
+        address = "localhost";
+        
+        CU_ASSERT(real_address(address, rval) == NULL);
+        dst = (char *) malloc(40 * sizeof(char));
+        t = inet_ntop(AF_INET6, (void *) &(rval->sin6_addr.s6_addr), dst, 40 * sizeof(char));
+        
+        CU_ASSERT(t != NULL);
+        CU_ASSERT_STRING_EQUAL(dst, "::1");
+
+        free(dst);
+        free(rval);
+}
 
 /*--------------------------------------------------------------------------+
 | Tests pour les fonctions de packet_implem (encode, decode, etc)           |
@@ -1250,13 +1304,6 @@ void test_read_write_loop(void) {
 
 }
 
-
-
-
-
-
-
-
 /* Test Runner Code goes here */
 int main(void) {
     CU_pSuite basic = NULL;
@@ -1275,6 +1322,7 @@ int main(void) {
 
     /* add the tests to the suite */
     if      (
+		//(NULL == CU_add_test(basic, "real_address", test_real_address)) ||
         (NULL == CU_add_test(basic, "type", test_pkt_type)) ||
         (NULL == CU_add_test(basic, "window", test_pkt_window)) ||
         (NULL == CU_add_test(basic, "seqnum", test_pkt_seqnum)) ||
