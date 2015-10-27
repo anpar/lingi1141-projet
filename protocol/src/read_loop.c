@@ -133,7 +133,7 @@ bool in_window(win * rwin, uint8_t seqnum)
  * Construit un ack pour un paquet reçu
  */
 void build_ack(char ack[4], win * rwin) {
-    ack[0] = (uint8_t) (PTYPE_ACK << 5) | rwin->free_space;
+    ack[0] = (uint8_t) (PTYPE_ACK << 5) | (rwin->free_space & 0b00011111);
 
     // On compte le nombre d'ack en séquence pour trouver le dernier en séquence
     int i = 0;
@@ -150,7 +150,7 @@ void build_ack(char ack[4], win * rwin) {
  * Construit un nack pour un paquet reçu
  */
 void build_nack(pkt_t * pkt, char nack[4], win * rwin) {
-    nack[0] = (uint8_t) (PTYPE_NACK << 5) | rwin->free_space;
+    nack[0] = (uint8_t) (PTYPE_NACK << 5) | (rwin->free_space & 0b00011111);
     nack[1] = pkt_get_seqnum(pkt);
     nack[2] = 0;
 	nack[3] = 0;
@@ -176,8 +176,10 @@ bool write_on_socket(int sfd, char * buf, int size) {
 }
 
 void add_in_window(pkt_t * d_pkt, win * rwin) {
-	rwin->free_space--;     // Une place de moins dans rwin
-	rwin->buffer[mod(pkt_get_seqnum(d_pkt) - (rwin->last_in_seq + 1), 256)] = d_pkt;
+	if(rwin->buffer[mod(pkt_get_seqnum(d_pkt) - (rwin->last_in_seq + 1), 256)] == NULL) {
+		rwin->free_space--;     // Une place de moins dans rwin
+		rwin->buffer[mod(pkt_get_seqnum(d_pkt) - (rwin->last_in_seq + 1), 256)] = d_pkt;
+	}
 }
 
 void read_loop(int sfd, char * filename)
