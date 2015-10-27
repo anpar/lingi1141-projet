@@ -53,7 +53,11 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 	* values of the header and then only check the
 	* return values of the setters used.
 	*/
-	pkt_status_code c1 = pkt_set_type(pkt, (uint8_t) data[0] >> 5);
+	uint8_t received_type = (uint8_t) data[0];
+	received_type = received_type >> 5;
+	//fprintf(stderr, "type = %d.\n", received_type);
+	
+	pkt_status_code c1 = pkt_set_type(pkt, received_type);
 	/* Le cast en uint8_t permet de corriger un bug qui apparaissait lorsqu'on
 	décodait un paquet de type PTYPE_NACK, la valeur data[0] présente alors un
 	overflow (> 127) et on se retrouvait avec une valeur négative pour data[0] */

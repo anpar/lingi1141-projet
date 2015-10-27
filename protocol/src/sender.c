@@ -28,7 +28,7 @@ int main(int argc, char *argv[])
 			filename = optarg;
 			break;
 			default:
-			fprintf(stderr, "Try './receiver' for more information.\n");
+			fprintf(stderr, "Try './sender' for more information.\n");
 			return EXIT_FAILURE;
 			break;
 		}
@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
 	/* Get hostname and port */
 	if((argc - optind) != 2) {
 		fprintf(stderr, "Usage:\n"
-		"\treceiver [OPTION] HOSTNAME PORT\n"
+		"\trsender [OPTION] HOSTNAME PORT\n"
 		"Option:\n"
 		"-f, --filename FILENAME\n"
 		"\tsaves the data received into FILENAME\n");

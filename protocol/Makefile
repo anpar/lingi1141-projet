@@ -40,4 +40,4 @@ tests.o: tests/tests.c src/read_loop.h src/read_write_loop.h
 	gcc $(CFLAGS) -c tests/tests.c
 
 clean:
-	rm -rf receiver sender test *.o *.c~ *.h~
+	rm -rf receiver sender test *.o *.c~ *.h~ out/*
