@@ -54,13 +54,17 @@ void resend_data() {
 
     int j;
     for(j = 0; j < SENDER_WINDOW_SIZE; j++) {
-        if(timer_gettime(swin[j].timerid, &timerspec) != 0) {
+        /* si ack vaut false, alors on prend la valeur du timer, sinon la condition
+        est forcément fausse et C n'évaluera même pas la deuxième, et ça tombe
+        parce que si ack vaut true, le timer a été delete donc timer_gettime
+        retourne une erreur */
+        if(!swin[j].ack && timer_gettime(swin[j].timerid, &timerspec) != 0) {
             perror("timer_gettime()");
             return;
         }
 
         /* Si le timer est à 0 et que le paquet n'a pas encore été ack (ack == false) */
-        if(timerspec.it_value.tv_sec == 0 && timerspec.it_value.tv_nsec == 0 && !swin[j].ack) {
+        if(timerspec.it_value.tv_sec == 0 && timerspec.it_value.tv_nsec == 0) {
             /* On renvoie les données */
             if (!send_data(socket_number, swin[j].pkt_buf, swin[j].data_size)) {
                 perror("write()");
@@ -262,6 +266,8 @@ void sender(int sfd, char * filename) {
                                 index += 256;
                             }
 
+                            swin[index].ack = false;
+
                             /* Structures et variables pour relancer le timer */
                             struct timespec value;
                             struct timespec interval;
@@ -287,8 +293,6 @@ void sender(int sfd, char * filename) {
                                 perror("timer_settime()");
                                 return;
                             }
-
-                            swin[index].ack = false;
                         }
                     } else {
                         /* Ni un ack ni un nack, on ne fait rien */
@@ -331,6 +335,7 @@ void sender(int sfd, char * filename) {
                     /* On encode en pkt pour obtenir le CRC et on place le résulat
                     dans la fenêtre d'envoi */
                     if(pkt_encode(pkt_temp, swin[i].pkt_buf, &max) == PKT_OK) {
+                        swin[i].ack = false;
                         swin[i].data_size = max;
                         swin_free_space--; // Il y a une place de libre de moins
 
@@ -359,8 +364,6 @@ void sender(int sfd, char * filename) {
                             perror("timer_settime()");
                             return;
                         }
-
-                        swin[i].ack = false;
 
                         seqnum++;
                         seqnum = seqnum % 256;
