@@ -22,11 +22,10 @@ struct rwindow {
 
 typedef struct rwindow r_win;
 
-/* Loop reading a socket and writing on a socket.
- * This function decode the data read on the socket.
- * @sfd: The socket file descriptor. It is both bound and connected.
- * @filename: if != NULL, the file where data received must be stored.
- * @return: as soon as PTYPE_DATA with length = 0 is received
+/*
+ * Lit les données reçu sur le socket, les décode et envoye les (n)ack
+ * correspondants. Les données décodées redirigés vers stdout si filename
+ * == NULL, et dans filename dans le cas contraire.
  */
 void receiver(const int sfd, char * filename);
 

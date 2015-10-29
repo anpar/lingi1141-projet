@@ -11,9 +11,6 @@
     return r < 0 ? r + b : r;
  }
 
-/*
- * Initialise la fenêtre de réception.
- */
 r_win * init_rwindow()
 {
 	r_win *w = (r_win *) malloc(sizeof(r_win));
@@ -66,21 +63,12 @@ void print_rwindow(r_win *rwin) {
     fprintf(stderr, "\n");
 }
 
-/*
- * Libère l'espace alloué pour la fenêtre
- * de réception.
- */
 void free_rwindow(r_win * rwin)
 {
 	free(rwin);
 	rwin = NULL;
 }
 
-/*
- * Décale la fenêtre et affiche sur out_fd les élements
- * en séquences dans la fenêtre (s'il y en a). Retourne true
- * si le transfert est terminé, false dans le cas contraire.
- */
 bool shift_rwindow(r_win * rwin, int out_fd)
 {
     int i;
@@ -149,9 +137,6 @@ bool shift_rwindow(r_win * rwin, int out_fd)
     return false;
 }
 
-/*
- * Retourne true si le numéro de séquence rentre dans la fenre, false sinon.
- */
 bool in_rwindow(r_win * rwin, uint8_t seqnum)
 {
 	int max = (rwin->last_in_seq + MAX_WINDOW_SIZE) % 256;
@@ -174,9 +159,6 @@ bool in_rwindow(r_win * rwin, uint8_t seqnum)
 	}
 }
 
-/*
- * Construit un ack pour un paquet reçu.
- */
 void build_ack(char ack[8], r_win * rwin) {
     /* Comme shift_rwindow s'éxécute après la fonction build_ack, il faut anticiper
     le nombre de places que va libérer cette fonction. On compte le nombre de pkt
@@ -198,9 +180,6 @@ void build_ack(char ack[8], r_win * rwin) {
 	ack[7] = crc & 0xFF;
 }
 
-/*
- * Construit un nack pour un paquet reçu
- */
 void build_nack(pkt_t * pkt, char nack[8], r_win * rwin) {
     /* On compte le nombre d'ack en séquence pour trouver le dernier en séquence
     et le nombre de place libre après l'exécution de shift_rwindow (pour la même
@@ -221,10 +200,6 @@ void build_nack(pkt_t * pkt, char nack[8], r_win * rwin) {
 	nack[7] = crc & 0xFF;
 }
 
-/*
- * Permet d'écrire les ack et nack sur le socket. Renvoie true si tout s'est
- * bien passé, false sinon.
- */
 bool send_ack_or_nack(int sfd, char * buf, int size) {
     ssize_t written_on_socket = 0;
     while (written_on_socket != size) {
@@ -240,10 +215,6 @@ bool send_ack_or_nack(int sfd, char * buf, int size) {
     return true;
 }
 
-/*
- * Ajoute un paquet dans la fenêtre de réception (uniquement si ce
- * paquet n'a pas encore été reçu).
- */
 void add_in_rwindow(pkt_t * d_pkt, r_win * rwin) {
     /* Si le paquet n'est pas encore dans la window */
 	if(rwin->buffer[mod(pkt_get_seqnum(d_pkt) - (rwin->last_in_seq + 1), 256)] == NULL) {
@@ -252,11 +223,6 @@ void add_in_rwindow(pkt_t * d_pkt, r_win * rwin) {
 	}
 }
 
-/*
- * Lit les données reçu sur le socket, les décode et envoye les (n)ack
- * correspondants. Les données décodées redirigés vers stdout si filename
- * == NULL, et dans filename dans le cas contraire.
- */
 void receiver(int sfd, char * filename)
 {
     /* Buffer pour stocker temporairement les données lues sur le socket */

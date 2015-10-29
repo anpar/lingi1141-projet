@@ -8,7 +8,7 @@
 
 #include "wait_for_sender.h"
 
-#define BUF_SIZE 1024
+#define BUF_SIZE 520
 
 int wait_for_sender(int sfd){
     char buf[BUF_SIZE];
