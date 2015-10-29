@@ -5,6 +5,7 @@
 #include <stdlib.h>		/* malloc, free */
 #include <sys/select.h> /* select */
 #include <string.h>     /* memcpy */
+#include <zlib.h> 		/* crc32 */
 
 #include "read_loop.h"
 
@@ -192,7 +193,7 @@ bool in_window(win * rwin, uint8_t seqnum)
 /*
  * Construit un ack pour un paquet reçu
  */
-void build_ack(char ack[4], win * rwin) {
+void build_ack(char ack[8], win * rwin) {
     // On compte le nombre d'ack en séquence pour trouver le dernier en séquence
     // et le nombre de place libre après l'exécution de shift_window
     int i = 0;
@@ -204,12 +205,17 @@ void build_ack(char ack[4], win * rwin) {
     ack[1] = (rwin->last_in_seq + i + 1) % 256;
 	ack[2] = 0;
 	ack[3] = 0;
+	uint32_t crc = (uint32_t) crc32(0, (Bytef *) ack, 4);
+	ack[4] = (crc >> 24) & 0xFF;
+	ack[5] = (crc >> 16) & 0xFF;
+	ack[6] = (crc >> 8) & 0xFF;
+	ack[7] = crc & 0xFF;
 }
 
 /*
  * Construit un nack pour un paquet reçu
  */
-void build_nack(pkt_t * pkt, char nack[4], win * rwin) {
+void build_nack(pkt_t * pkt, char nack[8], win * rwin) {
     // On compte le nombre d'ack en séquence pour trouver le dernier en séquence
     // et le nombre de place libre après l'exécution de shift_window
     int i = 0;
@@ -221,6 +227,11 @@ void build_nack(pkt_t * pkt, char nack[4], win * rwin) {
     nack[1] = pkt_get_seqnum(pkt);
     nack[2] = 0;
 	nack[3] = 0;
+	uint32_t crc = (uint32_t) crc32(0, (Bytef *) nack, 4);
+	nack[4] = (crc >> 24) & 0xFF;
+	nack[5] = (crc >> 16) & 0xFF;
+	nack[6] = (crc >> 8) & 0xFF;
+	nack[7] = crc & 0xFF;
 }
 
 /*
@@ -322,11 +333,11 @@ void read_loop(int sfd, char * filename)
                         un ACK */
                         if(read_on_socket != 4) {
                             //fprintf(stderr, "No network overload indicated.\n");
-                            char ack[4];
+                            char ack[8];
 							add_in_window(d_pkt, rwin);
                             print_window(rwin);
                             build_ack(ack, rwin);
-                            if(!write_on_socket(sfd, ack, 4))
+                            if(!write_on_socket(sfd, ack, 8))
                                 return;
                         }
                         /* Sinon, le paquet a été coupé à cause de congestion
@@ -334,9 +345,9 @@ void read_loop(int sfd, char * filename)
                         un NACK */
                         else {
                             //fprintf(stderr, "Network overload indicated!\n");
-                            char nack[4];
+                            char nack[8];
                             build_nack(d_pkt, nack, rwin);
-                            if(!write_on_socket(sfd, nack, 4))
+                            if(!write_on_socket(sfd, nack, 8))
                                 return;
                         }
                     }

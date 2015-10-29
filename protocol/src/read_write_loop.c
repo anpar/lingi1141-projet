@@ -258,7 +258,7 @@ void read_write_loop(int sfd, char * filename) {
             to analyse it (ACK or NACK) */
             if (FD_ISSET(sfd, &readfds)) {
                 fprintf(stderr, "Reading on the socket : ");
-                ssize_t read_on_socket = read(sfd, buf, 4);
+                ssize_t read_on_socket = read(sfd, buf, 8);
                 if (read_on_socket == -1) {
                     perror("read()");
                     return;
@@ -269,7 +269,7 @@ void read_write_loop(int sfd, char * filename) {
                 /* PRENDRE LES MESURES EN FONCTION DE CE QUI EST LU */
                 pkt_t * pkt_temp = pkt_new();
                 uint8_t seqnum_pkt;
-                pkt_status_code p = pkt_decode(buf, 4, pkt_temp);
+                pkt_status_code p = pkt_decode(buf, 8, pkt_temp);
                 if(p != PKT_OK) {
                     fprintf(stderr,"pkt_decode() a échoué et retourné %d.\n", (int) p);
                     return;
@@ -277,6 +277,7 @@ void read_write_loop(int sfd, char * filename) {
 
                 /* Si on reçoit un ack (attention:cumulatif), on modifie les données */
                 if(pkt_get_type(pkt_temp) == PTYPE_ACK) {
+					// TODO: implement fast retransmission
                     seqnum_pkt = pkt_get_seqnum(pkt_temp);
                     r_window_free = pkt_get_window(pkt_temp);
                     fprintf(stderr, "PTYPE_ACK reçu pour < %d (rwf = %d).\n", seqnum_pkt, r_window_free);

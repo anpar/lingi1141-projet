@@ -75,13 +75,10 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 	if(c3 != PKT_OK) {return(c3);}
 	if(c4 != PKT_OK) {return(c4);}
 
-	// Si le paquet est un (n)ack
-	if(len == 4)
+	/* Si un paquet a été coupé */
+	if(len == 4 && pkt_get_type(pkt) == PTYPE_DATA)
 		return(PKT_OK);
-
-	if(len != 4 && pkt_get_type(pkt) != PTYPE_DATA)
-		return(E_UNCONSISTENT);
-
+	
 	if(len < 8)
 		return(E_UNCONSISTENT);
 
@@ -96,6 +93,10 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 
 	pkt_status_code c5 = pkt_set_crc(pkt, received_crc);
 	if(c5 != PKT_OK) 	{return(c5);}
+	
+	// Si le paquet est un (n)ack
+	if(len == 8 && pkt_get_type(pkt) != PTYPE_DATA)
+		return(PKT_OK);
 
 	// Ce cas correspond à paquet indiquant une fin de transfert
 	if(len == 8 && pkt_get_length(pkt) == 0) 	{return(PKT_OK);}
