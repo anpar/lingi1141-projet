@@ -1,12 +1,12 @@
-#include <stdlib.h> /* EXIT_X, atoi */
-#include <stdio.h> /* fprintf */
-#include <getopt.h> /* getopt_long */
-#include <unistd.h> /* close */
+#include <stdlib.h> 	/* EXIT_X, atoi */
+#include <stdio.h> 		/* fprintf */
+#include <getopt.h> 	/* getopt_long */
+#include <unistd.h> 	/* close */
 
 #include "real_address.h"
 #include "create_socket.h"
 #include "wait_for_sender.h"
-#include "read_loop.h"
+#include "receiver_core.h"
 
 int main(int argc, char *argv[])
 {
@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Process I/O */
-	read_loop(sfd, filename);
+	receiver(sfd, filename);
 
 	close(sfd);
 
