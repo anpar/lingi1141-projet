@@ -1,9 +1,6 @@
 #ifndef __CREATE_SOCKET_H_
 #define __CREATE_SOCKET_H_
 
-#include <netinet/in.h> /* * sockaddr_in6 */
-#include <sys/types.h> /* sockaddr_in6 */
-
 /* Creates a socket and initialize it
  * @source_addr: if !NULL, the source address that should be bound to this socket
  * @src_port: if >0, the port on which the socket is listening

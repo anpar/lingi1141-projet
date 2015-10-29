@@ -1,14 +1,8 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <zlib.h> /* crc32 */
-
 #include "packet_interface.h"
 
 /*
-* Structure reprensenting a packet.
-* Types of the different fields are
-* deduced from the getters/setters
-* defined in the interface.
+* Structure reprensenting a packet. Types of the different fields are
+* deduced from the getters/setters defined in the interface.
 */
 struct __attribute__((__packed__)) pkt {
 	ptypes_t type : 3;
@@ -18,7 +12,6 @@ struct __attribute__((__packed__)) pkt {
 	char * payload;
 	uint32_t crc;
 };
-
 
 pkt_t* pkt_new()
 {
@@ -55,16 +48,11 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 	*/
 	uint8_t received_type = (uint8_t) data[0];
 	received_type = received_type >> 5;
-	//fprintf(stderr, "type = %d.\n", received_type);
 
 	pkt_status_code c1 = pkt_set_type(pkt, received_type);
-	/* Le cast en uint8_t permet de corriger un bug qui apparaissait lorsqu'on
-	décodait un paquet de type PTYPE_NACK, la valeur data[0] présente alors un
-	overflow (> 127) et on se retrouvait avec une valeur négative pour data[0] */
 	pkt_status_code c2 = pkt_set_window(pkt, (uint8_t) data[0] & 0b00011111);
 	pkt_status_code c3 = pkt_set_seqnum(pkt, data[1]);
 
-	/* Plus ou moins idem ici */
 	uint16_t received_length = (uint8_t) data[2];
 	received_length = (received_length << 8) + (uint8_t) data[3];
 
@@ -75,10 +63,10 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 	if(c3 != PKT_OK) {return(c3);}
 	if(c4 != PKT_OK) {return(c4);}
 
-	/* Si un paquet a été coupé */
+	/* A packet was cut due to congestion on the network */
 	if(len == 4 && pkt_get_type(pkt) == PTYPE_DATA)
 		return(PKT_OK);
-	
+
 	if(len < 8)
 		return(E_UNCONSISTENT);
 
@@ -93,12 +81,12 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 
 	pkt_status_code c5 = pkt_set_crc(pkt, received_crc);
 	if(c5 != PKT_OK) 	{return(c5);}
-	
-	// Si le paquet est un (n)ack
+
+	/* The packet is a (n)ack */
 	if(len == 8 && pkt_get_type(pkt) != PTYPE_DATA)
 		return(PKT_OK);
 
-	// Ce cas correspond à paquet indiquant une fin de transfert
+	/* The packet indicates the end of the transfer */
 	if(len == 8 && pkt_get_length(pkt) == 0) 	{return(PKT_OK);}
 	if(len == 8) 		{return(E_NOPAYLOAD);}
 	if(len % 4 != 0) 	{return(E_PADDING);}
@@ -125,11 +113,9 @@ pkt_status_code pkt_encode(const pkt_t* pkt, char *buf, size_t *len)
 	buf[3] = pkt_get_length(pkt) & 0xFF;
 
 	/*
-	* Writing the payload in the buffer. First
-	* condition allows to detect the end of the
-	* payload and second allows to detect the end
-	* of the buffer (taking into account the
-	* fact that we need to keep space for the CRC).
+	* Writing the payload in the buffer. First condition allows to detect the
+	* end of the payload and second allows to detect the end of the buffer
+	* (taking into account the fact that we need to keep space for the CRC).
 	*/
 	const char * payload = pkt_get_payload(pkt);
 	uint16_t padding = (4 - (pkt_get_length(pkt) % 4)) % 4;
@@ -139,20 +125,13 @@ pkt_status_code pkt_encode(const pkt_t* pkt, char *buf, size_t *len)
 	}
 
 	/*
-	* If the loop stopped due to second
-	* condition, then it means the buffer
-	* is too small and so pkt_encode must
-	* return E_NOMEM.
+	* If the loop stopped due to second condition, then it means the buffer
+	* is too small and so pkt_encode must return E_NOMEM.
 	*/
 	if(i != pkt_get_length(pkt) + padding)
 		return(E_NOMEM);
 
-	/*
-	* Compute the CRC and add it at the end
-	* of buf.
-	* TODO: find a way to add this CRC in the
-	* pkt stucture.
-	*/
+	/* Compute the CRC and add it at the end of buf */
 	uint32_t crc = (uint32_t) crc32(0, (Bytef *) buf, 4 + pkt_get_length(pkt) + padding);
 	buf[i+4] = (crc >> 24) & 0xFF;
 	buf[i+5] = (crc >> 16) & 0xFF;
@@ -160,10 +139,9 @@ pkt_status_code pkt_encode(const pkt_t* pkt, char *buf, size_t *len)
 	buf[i+7] = crc & 0xFF;
 
 	/*
-	* Total number of bytes written : 4 for the header,
-	* pkt_get_length(pkt) for the useful part of payload,
-	* padding for the padding in the
-	* payload and 4 for the CRC.
+	* Total number of bytes written : 4 for the header, pkt_get_length(pkt) for
+	* the useful part of payload, padding for the padding in the payload and 4
+	* for the CRC.
 	*/
 	*len = 4 + pkt_get_length(pkt) + padding + 4;
 	return(PKT_OK);
@@ -249,9 +227,8 @@ pkt_status_code pkt_set_payload(pkt_t *pkt, const char *data,
 		uint16_t padding = (4 - (length % 4)) % 4;
 
 		/*
-		* If pkt->payload is already allocated
-		* with malloc (!= NULL), then we have
-		* to free'd it before reallocating.
+		* If pkt->payload is already allocated with malloc (!= NULL), then we
+		* have to free'd it before reallocating.
 		*/
 		if(pkt->payload != NULL)
 			free(pkt->payload);

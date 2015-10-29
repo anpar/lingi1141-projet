@@ -1,6 +1,8 @@
-#include <errno.h> /* errno */
-#include <stdio.h> /* fprintf */
-#include <string.h> /* strerror */
+#include <errno.h>      /* errno */
+#include <stdio.h>      /* fprintf */
+#include <string.h>     /* strerror */
+#include <netinet/in.h> /* sockaddr_in6 */
+#include <sys/types.h>  /* sockaddr_in6 */
 
 #include "create_socket.h"
 

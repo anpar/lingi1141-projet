@@ -1,14 +1,21 @@
 #ifndef __READ_LOOP_H_
 #define __READ_LOOP_H_
 
-#include <stdbool.h>
+#include <stdio.h>      /* perror, STDOUT_FILENO, fprintf */
+#include <unistd.h>		/* close, read, write */
+#include <fcntl.h>		/* open */
+#include <stdlib.h>		/* malloc, free */
+#include <sys/select.h> /* select */
+#include <string.h>     /* memcpy */
+#include <zlib.h> 		/* crc32 */
+#include <stdbool.h> 	/* true, false */
+
 #include "packet_interface.h"
 
-#define WIN_SIZE 31
 #define MAX_PKT_SIZE 520
 
 struct window {
-	pkt_t * buffer[WIN_SIZE];
+	pkt_t * buffer[MAX_WINDOW_SIZE];
 	int last_in_seq;
 	uint8_t free_space;
 };
@@ -54,16 +61,13 @@ void add_in_window(pkt_t * d_pkt, win * rwin);
 
 /*
  * Construit un ack pour un paquet reçu
- * FIX: le CRC doit-il se trouver dans un paquet
- * de type PTYPE_ACK? Pour un PTYPE_NACK c'est explicitement
- * précisé mais quid dans ce cas-ci?
  */
 void build_ack(char ack[8], win * rwin);
 
 /*
  * Construit un nack pour un paquet reçu
  */
-void build_nack(pkt_t * pkt, char nack[4], win * rwin);
+void build_nack(pkt_t * pkt, char nack[8], win * rwin);
 
 /*
  * Permet d'écrire les ack et nack sur le socket.

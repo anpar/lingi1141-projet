@@ -1,12 +1,3 @@
-#include <stdio.h>      /* perror, STDOUT_FILENO, fprintf */
-#include <stdbool.h>    /* true, false */
-#include <unistd.h>		/* close, read, write */
-#include <fcntl.h>		/* open */
-#include <stdlib.h>		/* malloc, free */
-#include <sys/select.h> /* select */
-#include <string.h>     /* memcpy */
-#include <zlib.h> 		/* crc32 */
-
 #include "read_loop.h"
 
 /*
@@ -30,10 +21,10 @@ win * init_window()
 		return NULL;
 
 	w->last_in_seq = -1;
-	w->free_space = WIN_SIZE;
+	w->free_space = MAX_WINDOW_SIZE;
 
 	int i;
-	for(i = 0; i < WIN_SIZE; i++) {
+	for(i = 0; i < MAX_WINDOW_SIZE; i++) {
 		w->buffer[i] = NULL;
 	}
 
@@ -41,20 +32,21 @@ win * init_window()
 }
 
 /*
- * Utilisée pour débuger
+ * Utilisé pour débuguer le programme. Cette fonction affiche la fenêtre
+ * de réception.
  */
 void print_window(win *rwin) {
     fprintf(stderr, "\n");
     fprintf(stderr, "Free space in window : %d. \t Last # acknwoledged : %d.\n", rwin->free_space, rwin->last_in_seq);
 
     int i = 0;
-    for(i = 0; i < WIN_SIZE; i++) {
+    for(i = 0; i < MAX_WINDOW_SIZE; i++) {
         fprintf(stderr, "%d\t", i);
     }
 
     fprintf(stderr, "\n");
 
-    for(i = 0; i < WIN_SIZE; i++) {
+    for(i = 0; i < MAX_WINDOW_SIZE; i++) {
         if(rwin->buffer[i] != NULL) {
             fprintf(stderr, "#%d\t", pkt_get_seqnum(rwin->buffer[i]));
         } else {
@@ -64,7 +56,7 @@ void print_window(win *rwin) {
 
     fprintf(stderr, "\n");
 
-    for(i = 0; i < WIN_SIZE; i++) {
+    for(i = 0; i < MAX_WINDOW_SIZE; i++) {
         if(rwin->buffer[i] != NULL) {
             fprintf(stderr, "L:%d\t", pkt_get_length(rwin->buffer[i]));
         } else {
@@ -87,7 +79,7 @@ void free_window(win * rwin)
 
 /*
  * Décale la fenêtre et affiche sur out_fd les élements
- * en séquences dans la fenêtre (s'il y en a). Retourne
+ * en séquences dans la fenêtre (s'il y en a). Retourne true
  * si le transfert est terminé, false dans le cas contraire.
  */
 bool shift_window(win * rwin, int out_fd)
@@ -95,7 +87,7 @@ bool shift_window(win * rwin, int out_fd)
     bool shifted = false;
 
     int i;
-    for(i = 0; i < WIN_SIZE; i++) {
+    for(i = 0; i < MAX_WINDOW_SIZE; i++) {
         if(rwin->buffer[i] != NULL) {
             // En principe toujours vrai
             if(pkt_get_seqnum(rwin->buffer[i]) == ((rwin->last_in_seq + 1) % 256)) {
@@ -136,7 +128,7 @@ bool shift_window(win * rwin, int out_fd)
 	/* Il faut ensuite décaler chaque élément de la fenêtre de i
 	place vers la gauche */
 	int j;
-	for(j = 0; j < WIN_SIZE - i && i != 0; j++) {
+	for(j = 0; j < MAX_WINDOW_SIZE - i && i != 0; j++) {
         /* Nombre de byte à copier = 4 (header) + longueur utile du payload +
         padding + 4 (crc) */
         if(rwin->buffer[j] != NULL && rwin->buffer[j+i] != NULL) {
@@ -151,7 +143,7 @@ bool shift_window(win * rwin, int out_fd)
 
     /* ET vider les places à la fin de la fenêtre */
     int k;
-    for(k = WIN_SIZE - 1; k > WIN_SIZE - 1 - i; k--) {
+    for(k = MAX_WINDOW_SIZE - 1; k > MAX_WINDOW_SIZE - 1 - i; k--) {
         pkt_del(rwin->buffer[k]);
         rwin->buffer[k] = NULL;
     }
@@ -168,7 +160,7 @@ bool shift_window(win * rwin, int out_fd)
  */
 bool in_window(win * rwin, uint8_t seqnum)
 {
-	int max = (rwin->last_in_seq + WIN_SIZE) % 256;
+	int max = (rwin->last_in_seq + MAX_WINDOW_SIZE) % 256;
 	int min = rwin->last_in_seq;
 
     //fprintf(stderr,"max %d min %d seqnum %d last_in_seq %d \n", max, min, (int) seqnum, (int) rwin->last_in_seq);
@@ -178,7 +170,7 @@ bool in_window(win * rwin, uint8_t seqnum)
 	 *      max          min
 	 * ------]------------|-----
 	 */
-	if((rwin->last_in_seq + WIN_SIZE) >= 256) {
+	if((rwin->last_in_seq + MAX_WINDOW_SIZE) >= 256) {
 		return (seqnum > min) || (seqnum <= max);
 	}
 	/* La fenêtre ressemble à ça :
@@ -197,7 +189,7 @@ void build_ack(char ack[8], win * rwin) {
     // On compte le nombre d'ack en séquence pour trouver le dernier en séquence
     // et le nombre de place libre après l'exécution de shift_window
     int i = 0;
-    while(i < WIN_SIZE && rwin->buffer[i] != NULL) {
+    while(i < MAX_WINDOW_SIZE && rwin->buffer[i] != NULL) {
         i++;
     }
 
