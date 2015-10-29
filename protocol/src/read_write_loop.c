@@ -85,9 +85,12 @@ void hdl() {
         }
 
         if(timerspec.it_value.tv_sec == 0 && timerspec.it_value.tv_nsec == 0 && windowTab[j].ack == -1) {
-            fprintf(stderr,"Le timer du paquet #%d a expiré.\n", (int) (lastack + j) % 256);
+            fprintf(stderr,"Le timer du paquet #%d a expiré ", (int) (lastack + j) % 256);
 
+			pkt_t * p = pkt_new();
+			pkt_decode(windowTab[j].pkt_buf, windowTab[j].data_size, p);
             /* On renvoie ce paquet */
+            fprintf(stderr, "(seqnum : %d, type : %d).\n", pkt_get_seqnum(p), pkt_get_type(p));
             int ret = write_on_socket2(socketNumber, windowTab[j].pkt_buf, windowTab[j].data_size);
             if (ret == -1) {
                 perror("write()");

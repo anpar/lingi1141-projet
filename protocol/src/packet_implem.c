@@ -266,7 +266,7 @@ pkt_status_code pkt_set_payload(pkt_t *pkt, const char *data,
 		}
 
 		while(padding > 0) {
-			pkt->payload[i] = '0';
+			pkt->payload[i] = 0;
 			i++;
 			padding--;
 		}
