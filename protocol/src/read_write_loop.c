@@ -108,7 +108,7 @@ void hdl() {
 */
 bool seqnum_valid(int seqnum_pkt)
 {
-    if(seqnum_pkt < 0 || seqnum_pkt >255) {
+    if(seqnum_pkt < 0 || seqnum_pkt > 255) {
         return false;
     }
 
@@ -117,7 +117,7 @@ bool seqnum_valid(int seqnum_pkt)
         return true;
     }
 
-    if(seqnum_pkt >= lastack && seqnum_pkt < lastack + 32) {
+    if(seqnum_pkt >= lastack && seqnum_pkt <= lastack + 32) {
         return true;
     }
 
@@ -172,7 +172,7 @@ void slideWindowTab(int k) {
             return;
         }
 
-        windowFree ++;
+        s_windowFree++;
         k--;
     }
 
@@ -184,7 +184,7 @@ void slideWindowTab(int k) {
         windowTab[j].timerid = windowTab[k2+j].timerid;
         windowTab[j].ack = windowTab[k2+j].ack;
         windowTab[j].data_size = windowTab[k2+j].data_size;
-        memcpy(windowTab[j].pkt_buf, windowTab[k2+j].pkt_buf, 520);
+        memcpy(windowTab[j].pkt_buf, windowTab[k2+j].pkt_buf, windowTab[k2+j].data_size);
     }
 
     // On libère plusieurs cases au bout du tableau
@@ -219,7 +219,8 @@ void read_write_loop(int sfd, char * filename) {
 
     lastack = 0;
     /* FIX : 32 -> 31 */
-    windowFree = 32;
+    s_windowFree = 32;
+    r_window_free = 31;
     seqnum_maker = 0;
 
     signal(SIGALRM, hdl); // Lie le signal à la fonction hdl()
@@ -232,7 +233,7 @@ void read_write_loop(int sfd, char * filename) {
         fileDesc = STDIN_FILENO;
     } else {
         fprintf(stderr, "Lecture depuis %s.\n", filename);
-        fileDesc = open(filename,O_RDONLY);
+        fileDesc = open(filename, O_RDONLY);
         if(fileDesc == -1) {
             perror("open()");
             return;
@@ -276,10 +277,10 @@ void read_write_loop(int sfd, char * filename) {
 
                 /* Si on reçoit un ack (attention:cumulatif), on modifie les données */
                 if(pkt_get_type(pkt_temp) == PTYPE_ACK) {
-                    fprintf(stderr, "PTYPE_ACK reçu.\n");
                     seqnum_pkt = pkt_get_seqnum(pkt_temp);
+                    r_window_free = pkt_get_window(pkt_temp);
+                    fprintf(stderr, "PTYPE_ACK reçu pour < %d (rwf = %d).\n", seqnum_pkt, r_window_free);
                     if(seqnum_valid(seqnum_pkt)) {
-                        fprintf(stderr, "ACK pour les numéros < %d.\n", seqnum_pkt);
                         int k = seqnum_pkt - lastack; // Nombre d'éléments cumulés reçus
                         slideWindowTab(k);
                         lastack = seqnum_pkt;
@@ -288,10 +289,10 @@ void read_write_loop(int sfd, char * filename) {
                             return;
                     }
                 } else if(pkt_get_type(pkt_temp) == PTYPE_NACK) {
-                    fprintf(stderr, "PTYPE_NACK reçu.\n");
                     int i = pkt_get_seqnum(pkt_temp);
+                    r_window_free = pkt_get_window(pkt_temp);
+                    fprintf(stderr, "PTYPE_NACK reçu pour < %d (rwf = %d).\n", i, r_window_free);
                     if(seqnum_valid(i)) {
-                        fprintf(stderr, "NACK pour le numéro %d.\n", i);
                         i = i - lastack;
                         // case of [.|...|255|0|...|.]
                         if(i < 0) {
@@ -321,7 +322,7 @@ void read_write_loop(int sfd, char * filename) {
                         }
 
                         /* On relance le timer associé au paquet renvoyé */
-                        if(timer_settime(windowTab[i].timerid, 0, &itimerspec, NULL)!=0) {
+                        if(timer_settime(windowTab[i].timerid, 0, &itimerspec, NULL) != 0) {
                             perror("timer_settime()");
                             return;
                         }
@@ -337,8 +338,8 @@ void read_write_loop(int sfd, char * filename) {
             /* Characacters become available for reading on stdin or in the file,
             we have to directly write those characacters on the socket. Need a free
             place in the windowtable */
-            if(!eof_reached &&  ((fileDesc == STDIN_FILENO && FD_ISSET(fileDesc, &readfds) && FD_ISSET(sfd, &writefds) && windowFree > 0) ||
-                                (fileDesc != STDIN_FILENO && FD_ISSET(sfd, &writefds) && windowFree > 0))) {
+            if(!eof_reached &&  ((fileDesc == STDIN_FILENO && FD_ISSET(fileDesc, &readfds) && FD_ISSET(sfd, &writefds) && s_windowFree > 0 && r_window_free > 0) ||
+                                (fileDesc != STDIN_FILENO && FD_ISSET(sfd, &writefds) && s_windowFree > 0 && r_window_free > 0))) {
                 fprintf(stderr, "Lecture de données et envoi vers le récepteur ");
                 ssize_t read_on_stdin = read(fileDesc, buf, BUF_SIZE);
                 if (read_on_stdin == -1) {
@@ -358,55 +359,58 @@ void read_write_loop(int sfd, char * filename) {
                     i++;
                 }
 
-                windowTab[i].ack = -1;
-                pkt_t * pkt_temp = pkt_new();
-                pkt_set_type(pkt_temp, PTYPE_DATA);
-                pkt_set_window(pkt_temp, windowFree-1);
-                pkt_set_seqnum(pkt_temp, seqnum_maker);
-                pkt_set_length(pkt_temp, read_on_stdin);
-                pkt_set_payload(pkt_temp, buf, read_on_stdin);
-                fprintf(stderr, "Nouveau paquet créé à partir des données lues, #%d.\n", (int) seqnum_maker);
+                // Si on a trouvé une place dans la window
+                if(i != WINDOW_SIZE) {
+                    windowTab[i].ack = -1;
+                    pkt_t * pkt_temp = pkt_new();
+                    pkt_set_type(pkt_temp, PTYPE_DATA);
+                    pkt_set_window(pkt_temp, s_windowFree-1);
+                    pkt_set_seqnum(pkt_temp, seqnum_maker);
+                    pkt_set_length(pkt_temp, read_on_stdin);
+                    pkt_set_payload(pkt_temp, buf, read_on_stdin);
+                    fprintf(stderr, "Nouveau paquet créé à partir des données lues, #%d.\n", (int) seqnum_maker);
 
-                size_t max = 520;
-                /* On encode en pkt pour obtenir le CRC et le mettre dans un buffer */
-                pkt_status_code p = pkt_encode(pkt_temp, windowTab[i].pkt_buf, &max);
-                windowTab[i].data_size = max;
+                    size_t max = 520;
+                    /* On encode en pkt pour obtenir le CRC et le mettre dans un buffer */
+                    pkt_status_code p = pkt_encode(pkt_temp, windowTab[i].pkt_buf, &max);
+                    windowTab[i].data_size = max;
 
-                if(p != PKT_OK) {
-                    fprintf(stderr,"pkt_encode() a échoué et a retourné %d.\n", (int) p);
-                    return;
+                    if(p != PKT_OK) {
+                        fprintf(stderr,"pkt_encode() a échoué et a retourné %d.\n", (int) p);
+                        return;
+                    }
+                    s_windowFree--; // Il y a une place de libre de moins
+
+                    /* On écrit sur le socket */
+                    int ret = write_on_socket2(sfd, windowTab[i].pkt_buf, max);
+                    if (ret == -1) {
+                        perror("write()");
+                        return;
+                    }
+
+                    struct timespec value;
+                    struct timespec interval;
+                    struct itimerspec itimerspec;
+
+                    value.tv_sec = 5;
+                    value.tv_nsec = 0;
+
+                    interval.tv_sec = 0;
+                    interval.tv_nsec = 0;
+
+                    itimerspec.it_interval = interval;
+                    itimerspec.it_value = value;
+
+                    // On lance le timer correspondant
+                    if(timer_settime(windowTab[i].timerid, 0, &itimerspec, NULL) != 0) {
+                        perror("timer_settime()");
+                        return;
+                    }
+
+                    pkt_del(pkt_temp);
+                    seqnum_maker++;
+                    seqnum_maker = seqnum_maker % 256;
                 }
-                windowFree--; // Il y a une place de libre de moins
-
-                /* On écrit sur le socket */
-                int ret = write_on_socket2(sfd, windowTab[i].pkt_buf, max);
-                if (ret == -1) {
-                    perror("write()");
-                    return;
-                }
-
-                struct timespec value;
-                struct timespec interval;
-                struct itimerspec itimerspec;
-
-                value.tv_sec = 5;
-                value.tv_nsec = 0;
-
-                interval.tv_sec = 0;
-                interval.tv_nsec = 0;
-
-                itimerspec.it_interval = interval;
-                itimerspec.it_value = value;
-
-                // On lance le timer correspondant
-                if(timer_settime(windowTab[i].timerid, 0, &itimerspec, NULL) != 0) {
-                    perror("timer_settime()");
-                    return;
-                }
-
-                pkt_del(pkt_temp);
-                seqnum_maker++;
-                seqnum_maker = seqnum_maker % 256;
             }
         }
     }

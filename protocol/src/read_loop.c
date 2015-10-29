@@ -4,6 +4,7 @@
 #include <fcntl.h>		/* open */
 #include <stdlib.h>		/* malloc, free */
 #include <sys/select.h> /* select */
+#include <string.h>     /* memcpy */
 
 #include "read_loop.h"
 
@@ -39,6 +40,41 @@ win * init_window()
 }
 
 /*
+ * Utilisée pour débuger
+ */
+void print_window(win *rwin) {
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Free space in window : %d. \t Last # acknwoledged : %d.\n", rwin->free_space, rwin->last_in_seq);
+
+    int i = 0;
+    for(i = 0; i < WIN_SIZE; i++) {
+        fprintf(stderr, "%d\t", i);
+    }
+
+    fprintf(stderr, "\n");
+
+    for(i = 0; i < WIN_SIZE; i++) {
+        if(rwin->buffer[i] != NULL) {
+            fprintf(stderr, "#%d\t", pkt_get_seqnum(rwin->buffer[i]));
+        } else {
+            fprintf(stderr, "-\t");
+        }
+    }
+
+    fprintf(stderr, "\n");
+
+    for(i = 0; i < WIN_SIZE; i++) {
+        if(rwin->buffer[i] != NULL) {
+            fprintf(stderr, "L:%d\t", pkt_get_length(rwin->buffer[i]));
+        } else {
+            fprintf(stderr, "-\t");
+        }
+    }
+
+    fprintf(stderr, "\n");
+}
+
+/*
  * Libère l'espace alloué pour la fenêtre
  * de réception.
  */
@@ -55,17 +91,21 @@ void free_window(win * rwin)
  */
 bool shift_window(win * rwin, int out_fd)
 {
+    bool shifted = false;
+
     int i;
     for(i = 0; i < WIN_SIZE; i++) {
         if(rwin->buffer[i] != NULL) {
             // En principe toujours vrai
             if(pkt_get_seqnum(rwin->buffer[i]) == ((rwin->last_in_seq + 1) % 256)) {
+                shifted = true;
+                //fprintf(stderr, "Something to shift in the window.\n");
                 rwin->last_in_seq = (rwin->last_in_seq + 1) % 256;
                 //fprintf(stderr,"last_in_seq de %d à %d \n", (int) rwin->last_in_seq - 1, (int) rwin->last_in_seq);
 
                 ssize_t written_on_out = 0;
                 while (written_on_out != pkt_get_length(rwin->buffer[i])) {
-                    ssize_t ret = write (out_fd, (void *) pkt_get_payload(rwin->buffer[i]), pkt_get_length(rwin->buffer[i])-written_on_out);
+                    ssize_t ret = write(out_fd, (void *) pkt_get_payload(rwin->buffer[i]), pkt_get_length(rwin->buffer[i])-written_on_out);
                     if (ret == -1) {
                         perror("write()");
                     }
@@ -87,6 +127,7 @@ bool shift_window(win * rwin, int out_fd)
                 }
             }
         } else {
+            //fprintf(stderr, "Nothing to shift in the window.\n");
 			break;
         }
     }
@@ -94,9 +135,28 @@ bool shift_window(win * rwin, int out_fd)
 	/* Il faut ensuite décaler chaque élément de la fenêtre de i
 	place vers la gauche */
 	int j;
-	for(j = i+1; j < WIN_SIZE && i != 0; j++) {
-		rwin->buffer[j-i] = rwin->buffer[j];
-	}
+	for(j = 0; j < WIN_SIZE - i && i != 0; j++) {
+        /* Nombre de byte à copier = 4 (header) + longueur utile du payload +
+        padding + 4 (crc) */
+        if(rwin->buffer[j] != NULL && rwin->buffer[j+i] != NULL) {
+            size_t len = 8 + pkt_get_length(rwin->buffer[j+i]) + ((4 - (pkt_get_length(rwin->buffer[j+i]) % 4)) % 4);
+            memcpy(rwin->buffer[j], rwin->buffer[j+i], len);
+            rwin->buffer[j+i] = NULL;
+        } else {
+            rwin->buffer[j] = rwin->buffer[j+i];
+            rwin->buffer[j+i] = NULL;
+        }
+    }
+
+    /* ET vider les places à la fin de la fenêtre */
+    int k;
+    for(k = WIN_SIZE - 1; k > WIN_SIZE - 1 - i; k--) {
+        pkt_del(rwin->buffer[k]);
+        rwin->buffer[k] = NULL;
+    }
+
+    if(shifted)
+        print_window(rwin);
 
     return false;
 }
@@ -133,14 +193,14 @@ bool in_window(win * rwin, uint8_t seqnum)
  * Construit un ack pour un paquet reçu
  */
 void build_ack(char ack[4], win * rwin) {
-    ack[0] = (uint8_t) (PTYPE_ACK << 5) | (rwin->free_space & 0b00011111);
-
     // On compte le nombre d'ack en séquence pour trouver le dernier en séquence
+    // et le nombre de place libre après l'exécution de shift_window
     int i = 0;
-    while(rwin->buffer[i] != NULL) {
+    while(i < WIN_SIZE && rwin->buffer[i] != NULL) {
         i++;
     }
 
+    ack[0] = (uint8_t) (PTYPE_ACK << 5) | ((rwin->free_space + i) & 0b00011111);
     ack[1] = (rwin->last_in_seq + i + 1) % 256;
 	ack[2] = 0;
 	ack[3] = 0;
@@ -150,7 +210,14 @@ void build_ack(char ack[4], win * rwin) {
  * Construit un nack pour un paquet reçu
  */
 void build_nack(pkt_t * pkt, char nack[4], win * rwin) {
-    nack[0] = (uint8_t) (PTYPE_NACK << 5) | (rwin->free_space & 0b00011111);
+    // On compte le nombre d'ack en séquence pour trouver le dernier en séquence
+    // et le nombre de place libre après l'exécution de shift_window
+    int i = 0;
+    while(rwin->buffer[i] != NULL) {
+        i++;
+    }
+
+    nack[0] = (uint8_t) (PTYPE_NACK << 5) | ((rwin->free_space + i) & 0b00011111);
     nack[1] = pkt_get_seqnum(pkt);
     nack[2] = 0;
 	nack[3] = 0;
@@ -176,6 +243,7 @@ bool write_on_socket(int sfd, char * buf, int size) {
 }
 
 void add_in_window(pkt_t * d_pkt, win * rwin) {
+    // Si le paquet n'est pas encore dans la window
 	if(rwin->buffer[mod(pkt_get_seqnum(d_pkt) - (rwin->last_in_seq + 1), 256)] == NULL) {
 		rwin->free_space--;     // Une place de moins dans rwin
 		rwin->buffer[mod(pkt_get_seqnum(d_pkt) - (rwin->last_in_seq + 1), 256)] = d_pkt;
@@ -228,7 +296,7 @@ void read_loop(int sfd, char * filename)
 			ou nack correspondant) sur le socket */
 			if(FD_ISSET(sfd, &readfds) && FD_ISSET(sfd, &writefds))
 			{
-                fprintf(stderr, "There is something to read on the socket.\n");
+                //fprintf(stderr, "There is something to read on the socket.\n");
 				/* On lit les données sur le socket */
 				ssize_t read_on_socket = read(sfd, (void *) buf, MAX_PKT_SIZE);
 				if (read_on_socket == -1) {
@@ -244,18 +312,19 @@ void read_loop(int sfd, char * filename)
                    rentre dans le fenêtre de réception, on le traite */
                 if(c == PKT_OK && in_window(rwin, pkt_get_seqnum(d_pkt)))
                 {
-                    fprintf(stderr, "And this thing is valid and can go in the reception window.\n");
+                    //fprintf(stderr, "And this thing is valid and can go in the reception window.\n");
                     /* Si le packet lu est de type PTYPE_DATA... */
                     if(pkt_get_type(d_pkt) == PTYPE_DATA)
                     {
-                        fprintf(stderr, "This is a PTYPE_DATA packet.\n");
+                        //fprintf(stderr, "This is a PTYPE_DATA packet.\n");
                         /* ... et qu'il contient plus de 4 bytes. Alors, on
                         le place dans la fenêtre de réception et on envoie
                         un ACK */
                         if(read_on_socket != 4) {
-                            fprintf(stderr, "No network overload indicated.\n");
+                            //fprintf(stderr, "No network overload indicated.\n");
                             char ack[4];
 							add_in_window(d_pkt, rwin);
+                            print_window(rwin);
                             build_ack(ack, rwin);
                             if(!write_on_socket(sfd, ack, 4))
                                 return;
@@ -264,7 +333,7 @@ void read_loop(int sfd, char * filename)
                         dans le réseau, il faut avertir le sender en envoyant
                         un NACK */
                         else {
-                            fprintf(stderr, "Network overload indicated!\n");
+                            //fprintf(stderr, "Network overload indicated!\n");
                             char nack[4];
                             build_nack(d_pkt, nack, rwin);
                             if(!write_on_socket(sfd, nack, 4))
@@ -273,17 +342,17 @@ void read_loop(int sfd, char * filename)
                     }
 				} else {
 				    /* Sinon on ne fait rien, on l'ignore */
-                    fprintf(stderr, "This thing isn't valid or can't go in the reception window (%d).\n", (int) c);
-                    fprintf(stderr, "Type : %d.\n", pkt_get_type(d_pkt));
+                    //fprintf(stderr, "This thing isn't valid or can't go in the reception window (%d).\n", (int) c);
+                    //fprintf(stderr, "Type : %d.\n", pkt_get_type(d_pkt));
                 }
             }
 
 			/* On peut écrire sur out_fd */
             // if(FD_ISSET(out_fd, &writefds)) {
 				if(shift_window(rwin, out_fd)) {
-                    fprintf(stderr, "Fin du transfert.\n");
+                    //fprintf(stderr, "Fin du transfert.\n");
                     break;
-               }
+                }
 			// }
 		}
 	}

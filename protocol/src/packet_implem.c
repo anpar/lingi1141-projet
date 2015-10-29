@@ -22,7 +22,7 @@ struct __attribute__((__packed__)) pkt {
 
 pkt_t* pkt_new()
 {
-	pkt_t * pkt = (pkt_t *) (malloc(sizeof(pkt_t)));
+	pkt_t * pkt = (pkt_t *) malloc(sizeof(pkt_t));
 	if(pkt == NULL)
 		return(NULL);
 
@@ -55,8 +55,8 @@ pkt_status_code pkt_decode(const char *data, const size_t len, pkt_t *pkt)
 	*/
 	uint8_t received_type = (uint8_t) data[0];
 	received_type = received_type >> 5;
-	fprintf(stderr, "type = %d.\n", received_type);
-	
+	//fprintf(stderr, "type = %d.\n", received_type);
+
 	pkt_status_code c1 = pkt_set_type(pkt, received_type);
 	/* Le cast en uint8_t permet de corriger un bug qui apparaissait lorsqu'on
 	décodait un paquet de type PTYPE_NACK, la valeur data[0] présente alors un

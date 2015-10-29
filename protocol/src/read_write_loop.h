@@ -31,7 +31,9 @@ struct window2 {
 
 struct window2 windowTab[WINDOW_SIZE];  // Fenêtre de l'émetteur
 int lastack;                            // Entier enregistrant la valeur du dernier ACK reçu
-int windowFree;                         // Entier enregistrant le nombre de places libres dans la fenêtre
+int s_windowFree;                       // Entier enregistrant le nombre de places libres dans la fenêtre
+                                        // du sender
+int r_window_free;
 int seqnum_maker;                       // Numéros de séquence des paquets
 int socketNumber;
 
