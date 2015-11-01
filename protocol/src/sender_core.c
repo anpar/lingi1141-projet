@@ -6,6 +6,10 @@ int rwin_free_space = MAX_WINDOW_SIZE;
 int seqnum = 0;
 int socket_number;
 bool eof_reached = false;
+/* Fast retransmission implementation */
+bool forced = false;
+int ack_received = 0;
+int repetition = 0;
 
 void init_swindow() {
     int j;
@@ -63,8 +67,9 @@ void resend_data() {
             return;
         }
 
-        /* Si le timer est à 0 et que le paquet n'a pas encore été ack (ack == false) */
-        if(timerspec.it_value.tv_sec == 0 && timerspec.it_value.tv_nsec == 0) {
+        /* Si le timer est à 0 et que le paquet n'a pas encore été ack (ack == false)
+        ou que forced vaut true */
+        if((timerspec.it_value.tv_sec == 0 && timerspec.it_value.tv_nsec == 0) || forced) {
             /* On renvoie les données */
             if (!send_data(socket_number, swin[j].pkt_buf, swin[j].data_size)) {
                 perror("write()");
@@ -234,6 +239,21 @@ void sender(int sfd, char * filename) {
                     décaler la fenêtre de réception */
                     if(pkt_get_type(pkt_temp) == PTYPE_ACK) {
                         seqnum_pkt = pkt_get_seqnum(pkt_temp);
+
+                        if(seqnum_pkt == ack_received) {
+                            repetition++;
+                            if(repetition == 3) {
+                                fprintf(stderr, "Fast restranmission for #%d !\n", seqnum_pkt);
+                                forced = true;
+                                resend_data();
+                                forced = false;
+                                repetition = 0;
+                            }
+                        } else {
+                            ack_received = seqnum_pkt;
+                            repetition = 0;
+                        }
+
                         /* On met à jour le nombre de place disponibles dans la
                         fenêtre de réception de receiver */
                         rwin_free_space = pkt_get_window(pkt_temp);
