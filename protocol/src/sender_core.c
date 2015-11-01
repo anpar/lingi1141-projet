@@ -243,7 +243,6 @@ void sender(int sfd, char * filename) {
                         if(seqnum_pkt == ack_received) {
                             repetition++;
                             if(repetition == 3) {
-                                fprintf(stderr, "Fast restranmission for #%d !\n", seqnum_pkt);
                                 forced = true;
                                 resend_data();
                                 forced = false;
