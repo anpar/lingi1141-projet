@@ -1,5 +1,5 @@
-#ifndef __READ_LOOP_H_
-#define __READ_LOOP_H_
+#ifndef __RECEIVER_CORE_H_
+#define __RECEIVER_CORE_H_
 
 #include <stdio.h>      /* perror, STDOUT_FILENO, fprintf */
 #include <unistd.h>		/* close, read, write */
@@ -14,65 +14,64 @@
 
 #define MAX_PKT_SIZE 520
 
-struct window {
+struct rwindow {
 	pkt_t * buffer[MAX_WINDOW_SIZE];
 	int last_in_seq;
 	uint8_t free_space;
 };
 
-typedef struct window win;
+typedef struct rwindow r_win;
 
-/* Loop reading a socket and writing on a socket.
- * This function decode the data read on the socket.
- * @sfd: The socket file descriptor. It is both bound and connected.
- * @filename: if != NULL, the file where data received must be stored.
- * @return: as soon as PTYPE_DATA with length = 0 is received
+/*
+ * Lit les données reçu sur le socket, les décode et envoye les (n)ack
+ * correspondants. Les données décodées redirigés vers stdout si filename
+ * == NULL, et dans filename dans le cas contraire.
  */
-void read_loop(const int sfd, char * filename);
+void receiver(const int sfd, char * filename);
 
 /*
  * Initialise la fenêtre de réception.
  */
-win * init_window();
+r_win * init_rwindow();
 
 /*
  * Libère l'espace alloué pour la fenêtre
  * de réception.
  */
-void free_window(win * rwin);
+void free_rwindow(r_win * rwin);
 
 /*
  * Décale la fenêtre et affiche sur out_fd les élements
  * en séquences dans la fenêtre (s'il y en a). Returne true
  * si le transfert est terminé, false dans le cas contraire.
  */
-bool shift_window(win * rwin, int out_fd);
+bool shift_rwindow(r_win * rwin, int out_fd);
 
 /*
  * Retourne true si le numéro de séquence
  * rentre dans la fenre, false sinon.
  */
-bool in_window(win * rwin, uint8_t seqnum);
+bool in_rwindow(r_win * rwin, uint8_t seqnum);
 
 /*
  * Ajoute un paquet dans la fenêtre de réception
  */
-void add_in_window(pkt_t * d_pkt, win * rwin);
+void add_in_rwindow(pkt_t * d_pkt, r_win * rwin);
 
 /*
  * Construit un ack pour un paquet reçu
  */
-void build_ack(char ack[8], win * rwin);
+void build_ack(char ack[8], r_win * rwin);
 
 /*
  * Construit un nack pour un paquet reçu
  */
-void build_nack(pkt_t * pkt, char nack[8], win * rwin);
+void build_nack(pkt_t * pkt, char nack[8], r_win * rwin);
 
 /*
  * Permet d'écrire les ack et nack sur le socket.
  * Renvoie true si tout s'est bien passé, false sinon.
  */
-bool write_on_socket(int sfd, char * buf, int size);
+bool send_ack_or_nack(int sfd, char * buf, int size);
 
 #endif

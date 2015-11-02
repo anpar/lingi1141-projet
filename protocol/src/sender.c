@@ -1,12 +1,11 @@
-#include <stdlib.h> /* EXIT_X, atoi */
-#include <stdio.h> /* fprintf */
-#include <getopt.h> /* getopt_long */
-#include <unistd.h> /* close */
+#include <stdlib.h> 	/* EXIT_X, atoi */
+#include <stdio.h> 		/* fprintf */
+#include <getopt.h> 	/* getopt_long */
+#include <unistd.h> 	/* close */
 
 #include "real_address.h"
 #include "create_socket.h"
-#include "wait_for_sender.h"
-#include "read_write_loop.h"
+#include "sender_core.h"
 
 int main(int argc, char *argv[])
 {
@@ -37,7 +36,7 @@ int main(int argc, char *argv[])
 	/* Get hostname and port */
 	if((argc - optind) != 2) {
 		fprintf(stderr, "Usage:\n"
-		"\trsender [OPTION] HOSTNAME PORT\n"
+		"\tsender [OPTION] HOSTNAME PORT\n"
 		"Option:\n"
 		"-f, --filename FILENAME\n"
 		"\tsaves the data received into FILENAME\n");
@@ -64,7 +63,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* Process I/O */
-	read_write_loop(sfd, filename);
+	sender(sfd, filename);
 
 	close(sfd);
 

@@ -8,7 +8,7 @@
 
 #include "wait_for_sender.h"
 
-#define BUF_SIZE 1024
+#define BUF_SIZE 520
 
 int wait_for_sender(int sfd){
     char buf[BUF_SIZE];
@@ -17,11 +17,9 @@ int wait_for_sender(int sfd){
 	peer_addr.sin6_family = AF_INET6;
     socklen_t peer_addr_len = sizeof(struct sockaddr_in6);
 
-    fprintf(stderr, "Receiver waiting the first packet from the sender...\n");
     nread = recvfrom(sfd, buf, BUF_SIZE, MSG_PEEK, (struct sockaddr *) &peer_addr, &peer_addr_len);
     if(nread >= 0) {
         if(connect(sfd, (const struct sockaddr *) &peer_addr, peer_addr_len) == 0) {
-            fprintf(stderr, "Receiver is connected to the sender.\n");
             return(0);
         }
 
