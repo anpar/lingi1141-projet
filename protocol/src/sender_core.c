@@ -277,15 +277,15 @@ void sender(int sfd, char * filename) {
                         if(in_swindow(seqnum_pkt)) {
                             /* On trouve l'indice dans la fenêtre d'envoi correspondant
                             au paquet qui a été coupé */
-                            int index = seqnum_pkt - lastack;
+                            int ind = seqnum_pkt - lastack;
 
                             /* Dans le cas ou la fenêtre ressemble à
                             [.|...|255|0|...|.], seqnum_pkt < 0 */
-                            if(index < 0) {
-                                index += 256;
+                            if(ind < 0) {
+                                ind += 256;
                             }
 
-                            swin[index].ack = false;
+                            swin[ind].ack = false;
 
                             /* Structures et variables pour relancer le timer */
                             struct timespec value;
@@ -302,13 +302,13 @@ void sender(int sfd, char * filename) {
                             itimerspec.it_value = value;
 
                             /* On renvoie le paquet */
-                            if (!send_data(sfd, swin[index].pkt_buf, swin[index].data_size)) {
+                            if (!send_data(sfd, swin[ind].pkt_buf, swin[ind].data_size)) {
                                 perror("write()");
                                 return;
                             }
 
                             /* On relance le timer associé au paquet renvoyé */
-                            if(timer_settime(swin[index].timerid, 0, &itimerspec, NULL) != 0) {
+                            if(timer_settime(swin[ind].timerid, 0, &itimerspec, NULL) != 0) {
                                 perror("timer_settime()");
                                 return;
                             }
